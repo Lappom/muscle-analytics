@@ -178,30 +178,33 @@ class CSVParser:
     def parse_french_decimal(self, value: str) -> float:
         """
         Convertit une décimale française (virgule) en float.
-        
+        Gère les cas avec plusieurs virgules en prenant les deux premiers segments.
+
         Args:
-            value: Valeur avec virgule décimale (ex: "12,5")
-            
+            value: Valeur avec virgule décimale (ex: "12,5", "12,5,5")
+
         Returns:
             Valeur float
         """
         if pd.isna(value) or value == '':
             return 0.0
-            
+
         # Nettoyage du texte
         cleaned = self._clean_text(str(value))
-        
+
         # Suppression des unités communes
         units_pattern = r'\s*(kg|kilogrammes?|grammes?|g|lbs?|pounds?|répétitions?|reps?)\s*'
         cleaned = re.sub(units_pattern, '', cleaned, flags=re.IGNORECASE)
-        
-        # Remplacement virgule par point
-        cleaned = cleaned.replace(',', '.')
-        
+
         # Suppression des espaces
         cleaned = re.sub(r'\s+', '', cleaned)
-        
+
+        # Gestion des virgules et conversion
         try:
+            parts = cleaned.split(',')
+            int_part = parts[0] if parts[0] != '' else '0'
+            frac_part = parts[1] if len(parts) > 1 and parts[1] != '' else '0'
+            cleaned = f"{int_part}.{frac_part}" if len(parts) > 1 else int_part
             return float(cleaned)
         except ValueError:
             logger.warning(f"Impossible de convertir '{value}' en float, retour 0.0")
