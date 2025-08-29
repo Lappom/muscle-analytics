@@ -199,14 +199,17 @@ class CSVParser:
         # Suppression des espaces
         cleaned = re.sub(r'\s+', '', cleaned)
 
-        # Gestion des virgules multiples
-        if cleaned.count(',') > 1:
-            parts = cleaned.split(',')
-            cleaned = f"{parts[0]}.{parts[1]}"
-        else:
-            cleaned = cleaned.replace(',', '.')
-
+        # Gestion des virgules multiples et conversion
         try:
+            if cleaned.count(',') > 1:
+                parts = cleaned.split(',')
+                if len(parts) > 1 and parts[0] and parts[1]:
+                    cleaned = f"{parts[0]}.{parts[1]}"
+                else:
+                    logger.warning(f"Format décimal inattendu pour '{value}' après nettoyage: '{cleaned}', retour 0.0")
+                    return 0.0
+            else:
+                cleaned = cleaned.replace(',', '.')
             return float(cleaned)
         except (ValueError, IndexError):
             logger.warning(f"Impossible de convertir '{value}' en float, retour 0.0")
