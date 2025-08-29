@@ -1,0 +1,24 @@
+# Handle line endings automatically for files detected as text
+# and leave files detected as binary untouched.
+* text=auto
+
+# Never modify line endings of shell scripts
+*.sh -text
+
+# Force lf for specific file types
+*.py text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+
+# Denote all files that are truly binary and should not be modified.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary

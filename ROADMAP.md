@@ -21,9 +21,9 @@ Mise en place d'un repository propre avec infrastructure de développement et co
 
 - [x] Créer repository GitHub avec README initial
 - [x] Configurer `.gitignore`, `.editorconfig`, `.gitattributes` et `LICENSE`
-- [ ] Créer branches : `main`, `dev`, `feature/*`
+- [x] Créer branches : `main`, `dev`, `feature/*`
 - [x] Ajouter `docker-compose.yml` minimal (DB + API skeleton)
-- [ ] Configurer CI basique via GitHub Actions (lint + tests skeleton)
+- [x] Configurer CI basique via GitHub Actions (lint + tests skeleton)
 - [x] Définir conventions de code et structure du projet
 
 ### Critères d'acceptation
