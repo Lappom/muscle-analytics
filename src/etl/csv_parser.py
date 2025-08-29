@@ -199,16 +199,12 @@ class CSVParser:
         # Suppression des espaces
         cleaned = re.sub(r'\s+', '', cleaned)
 
-        # Gestion des virgules multiples et conversion
+        # Gestion des virgules et conversion
         try:
-            if cleaned.count(',') > 1:
-                parts = cleaned.split(',')
-                # Use first two segments, substituting '0' for missing parts
-                int_part = parts[0] if len(parts) > 0 and parts[0] != '' else '0'
-                frac_part = parts[1] if len(parts) > 1 and parts[1] != '' else '0'
-                cleaned = f"{int_part}.{frac_part}"
-            else:
-                cleaned = cleaned.replace(',', '.')
+            parts = cleaned.split(',')
+            int_part = parts[0] if parts[0] != '' else '0'
+            frac_part = parts[1] if len(parts) > 1 and parts[1] != '' else '0'
+            cleaned = f"{int_part}.{frac_part}" if len(parts) > 1 else int_part
             return float(cleaned)
         except ValueError:
             logger.warning(f"Impossible de convertir '{value}' en float, retour 0.0")
