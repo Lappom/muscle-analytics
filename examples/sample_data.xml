@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<logs>
+  <log>
+    <date>01/09/2025</date>
+    <training>Push Day</training>
+    <time>10:00</time>
+    <exercise>Développé couché</exercise>
+    <region>Pectoraux</region>
+    <muscles_primary>Pectoraux</muscles_primary>
+    <muscles_secondary>Triceps</muscles_secondary>
+    <series_type>Série</series_type>
+    <reps>8</reps>
+    <weight>75,0 kg</weight>
+    <notes>Bonne séance</notes>
+    <skipped>Non</skipped>
+  </log>
+  <log>
+    <date>01/09/2025</date>
+    <training>Push Day</training>
+    <time>10:05</time>
+    <exercise>Développé couché</exercise>
+    <region>Pectoraux</region>
+    <muscles_primary>Pectoraux</muscles_primary>
+    <muscles_secondary>Triceps</muscles_secondary>
+    <series_type>Série</series_type>
+    <reps>6</reps>
+    <weight>80,0 kg</weight>
+    <notes></notes>
+    <skipped>Non</skipped>
+  </log>
+  <log>
+    <date>01/09/2025</date>
+    <training>Push Day</training>
+    <time>10:10</time>
+    <exercise>Overhead press</exercise>
+    <region>Épaules</region>
+    <muscles_primary>Deltoïdes</muscles_primary>
+    <muscles_secondary>Triceps</muscles_secondary>
+    <series_type>Série</series_type>
+    <reps>10</reps>
+    <weight>50,0 kg</weight>
+    <notes>Excellent contrôle</notes>
+    <skipped>Non</skipped>
+  </log>
+</logs>
