@@ -203,15 +203,14 @@ class CSVParser:
         try:
             if cleaned.count(',') > 1:
                 parts = cleaned.split(',')
-                if len(parts) > 1 and parts[0] and parts[1]:
-                    cleaned = f"{parts[0]}.{parts[1]}"
-                else:
-                    logger.warning(f"Format décimal inattendu pour '{value}' après nettoyage: '{cleaned}', retour 0.0")
-                    return 0.0
+                # Use first two segments, substituting '0' for missing parts
+                int_part = parts[0] if len(parts) > 0 and parts[0] != '' else '0'
+                frac_part = parts[1] if len(parts) > 1 and parts[1] != '' else '0'
+                cleaned = f"{int_part}.{frac_part}"
             else:
                 cleaned = cleaned.replace(',', '.')
             return float(cleaned)
-        except (ValueError, IndexError):
+        except ValueError:
             logger.warning(f"Impossible de convertir '{value}' en float, retour 0.0")
             return 0.0
     
