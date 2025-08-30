@@ -6,13 +6,13 @@ utilisés par les endpoints de l'API FastAPI.
 """
 
 import pandas as pd
-from typing import List, Dict, Optional, Tuple, Any, Type, TypeVar
+from typing import List, Dict, Optional, Tuple, Any, Type, TypeVar, NoReturn
 from datetime import date, datetime, timedelta
 from fastapi import Depends, HTTPException
 import logging
 
-from ..database import DatabaseManager, get_database
-from ..features import FeatureCalculator
+from database import DatabaseManager, get_database
+from features import FeatureCalculator
 from .models import (
     Session, Set, Exercise, VolumeStats, OneRMStats, 
     ProgressionStats, ExerciseAnalytics, DashboardData
@@ -65,7 +65,6 @@ class DatabaseService:
             ]
         except Exception as e:
             self._handle_database_error("récupération des sessions", e)
-            return []  # Cette ligne ne sera jamais atteinte car _handle_database_error lève une exception
     
     def get_session_by_id(self, session_id: int) -> Optional[Session]:
         """Récupère une session spécifique par son ID"""
@@ -91,9 +90,8 @@ class DatabaseService:
             )
         except Exception as e:
             self._handle_database_error("récupération de la session", e)
-            return None  # Cette ligne ne sera jamais atteinte car _handle_database_error lève une exception
         
-    def _handle_database_error(self, operation: str, error: Exception) -> None:
+    def _handle_database_error(self, operation: str, error: Exception) -> NoReturn:
         """
         Gère les erreurs de base de données de manière cohérente.
         
@@ -199,9 +197,12 @@ class DatabaseService:
 class AnalyticsService:
     """Service pour les calculs d'analytics"""
     
+    # Instance partagée du calculateur (stateless avec valeurs par défaut)
+    _feature_calculator = FeatureCalculator()
+    
     def __init__(self, db_service: DatabaseService):
         self.db_service = db_service
-        self.feature_calculator = FeatureCalculator()
+        self.feature_calculator = self._feature_calculator
     
     def _safe_extract_value(self, df: pd.DataFrame, column: str, 
                            value_type: Type[T], use_max: bool = False, 

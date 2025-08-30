@@ -57,7 +57,8 @@ class FeatureCalculator:
         
         return reps * self.seconds_per_rep + self.set_rest_time
     
-    def calculate_all_features(self, df: pd.DataFrame,
+    def calculate_all_features(self, 
+                             df: pd.DataFrame,
                              sessions_df: Optional[pd.DataFrame] = None,
                              include_1rm: bool = True,
                              one_rm_formulas: List[str] = ['epley', 'brzycki']) -> pd.DataFrame:

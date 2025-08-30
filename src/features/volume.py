@@ -81,7 +81,9 @@ class VolumeCalculator:
                                  'volume': ['sum', 'count', 'mean'],
                                  'reps': ['sum', 'mean'],
                                  'weight_kg': ['max', 'mean']
-                             }).round(2))            # Aplatir les colonnes multi-niveau
+                             }).round(2))
+            
+            # Aplatir les colonnes multi-niveau
             session_volumes.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] 
                                      for col in session_volumes.columns]
             session_volumes = session_volumes.reset_index()
@@ -93,9 +95,7 @@ class VolumeCalculator:
                              .agg({
                                  'volume': ['sum', 'count', 'mean'],
                                  'exercise': 'nunique'  # Nombre d'exercices différents
-                             }))
-            
-            session_volumes = session_volumes.round(2)
+                             }).round(2))
             
             session_volumes.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] 
                                      for col in session_volumes.columns]

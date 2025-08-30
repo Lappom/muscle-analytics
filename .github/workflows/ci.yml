@@ -41,6 +41,7 @@ jobs:
       TEST_DB_NAME: muscle_analytics_test
       TEST_DB_USER: test_user
       TEST_DB_PASSWORD: test_password
+      PYTHONPATH: src
 
     steps:
     - name: Checkout code
@@ -88,7 +89,7 @@ jobs:
         echo "Running test suite..."
         pytest -v --tb=short --strict-markers
       env:
-        PYTHONPATH: ${{ github.workspace }}
+        PYTHONPATH: ${{ github.workspace }}/src:${{ github.workspace }}
 
   code-quality:
     runs-on: ubuntu-latest

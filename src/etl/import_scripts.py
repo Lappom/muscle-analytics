@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, date, timedelta
 
 from .pipeline import ETLPipeline
-from ..database import DatabaseManager, DatabaseError
+from database import DatabaseManager, DatabaseError
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ class ETLImporter:
         
         Args:
             directory_path: Chemin vers le répertoire
-            file_pattern: Pattern pour filtrer les fichiers (par défaut: "*.{csv,xml}")
+            file_pattern: Pattern pour filtrer les fichiers
             force_import: Force l'import même si des données existent
             
         Returns:
