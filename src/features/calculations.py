@@ -26,6 +26,10 @@ class FeatureCalculator:
     DEFAULT_SECONDS_PER_REP = 4  # Temps moyen par répétition en secondes
     DEFAULT_SET_REST_TIME = 60   # Temps de récupération moyen entre séries
     
+    # Attributs de classe pour compatibilité avec les tests
+    SECONDS_PER_REP = 4.0  # Temps moyen par répétition en secondes
+    SET_REST_TIME = 60.0   # Temps de récupération moyen entre séries
+    
     def __init__(self, seconds_per_rep: Optional[float] = None, set_rest_time: Optional[float] = None):
         """
         Initialise les calculateurs spécialisés.
@@ -52,7 +56,8 @@ class FeatureCalculator:
         Returns:
             Durée estimée en secondes
         """
-        if pd.isna(reps) or reps <= 0:
+        # Validation que reps est un nombre positif valide
+        if pd.isna(reps) or not isinstance(reps, (int, float)) or reps <= 0:
             return np.nan
         
         return reps * self.seconds_per_rep + self.set_rest_time

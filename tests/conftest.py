@@ -194,6 +194,15 @@ def mock_db_service(sample_sessions, sample_sets, sample_exercises):
     mock_service.get_exercises.return_value = sample_exercises
     mock_service.get_unique_exercises_from_sets.return_value = ["Développé couché", "Tractions"]
     
+    # Ajout du mock pour get_session_by_id
+    def mock_get_session_by_id(session_id):
+        for session in sample_sessions:
+            if session.id == session_id:
+                return session
+        return None
+    
+    mock_service.get_session_by_id.side_effect = mock_get_session_by_id
+    
     return mock_service
 
 

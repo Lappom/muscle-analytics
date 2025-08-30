@@ -17,19 +17,19 @@ def ensure_test_environment():
     Cette fonction doit être appelée au début des tests pour éviter
     l'erreur 'role root does not exist'.
     """
-    # Configuration forcée pour les tests
+    # Configuration forcée pour les tests - compatible avec CI
     test_env_vars = {
         'APP_ENV': 'test',
         'TEST_DB_HOST': 'localhost',
         'TEST_DB_PORT': '5432',
         'TEST_DB_NAME': 'muscle_analytics_test',
-        'TEST_DB_USER': 'postgres',
-        'TEST_DB_PASSWORD': 'password',
-        'DB_USER': 'postgres',  # Pour éviter la confusion
+        'TEST_DB_USER': 'test_user',  # Changé de 'postgres' à 'test_user' pour CI
+        'TEST_DB_PASSWORD': 'test_password',  # Changé de 'password' à 'test_password' pour CI
+        'DB_USER': 'test_user',  # Pour éviter la confusion
         'DB_HOST': 'localhost',
         'DB_PORT': '5432',
         'DB_NAME': 'muscle_analytics_test',
-        'DB_PASSWORD': 'password'
+        'DB_PASSWORD': 'test_password'
     }
     
     logger.info("Configuration de l'environnement de test...")
@@ -65,8 +65,8 @@ def get_safe_test_config():
         'host': os.getenv('TEST_DB_HOST', 'localhost'),
         'port': int(os.getenv('TEST_DB_PORT', '5432')),
         'database': os.getenv('TEST_DB_NAME', 'muscle_analytics_test'),
-        'user': os.getenv('TEST_DB_USER', 'postgres'),
-        'password': os.getenv('TEST_DB_PASSWORD', 'password')
+        'user': os.getenv('TEST_DB_USER', 'test_user'),  # Changé de 'postgres' à 'test_user'
+        'password': os.getenv('TEST_DB_PASSWORD', 'test_password')  # Changé de 'password' à 'test_password'
     }
 
 

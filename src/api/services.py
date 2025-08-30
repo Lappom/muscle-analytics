@@ -6,13 +6,13 @@ utilisés par les endpoints de l'API FastAPI.
 """
 
 import pandas as pd
-from typing import List, Dict, Optional, Tuple, Any, Type, TypeVar, NoReturn
+from typing import List, Dict, Optional, Tuple, Any, Type, TypeVar, NoReturn, Literal
 from datetime import date, datetime, timedelta
 from fastapi import Depends, HTTPException
 import logging
 
-from database import DatabaseManager, get_database
-from features import FeatureCalculator
+from ..database import DatabaseManager, get_database
+from ..features import FeatureCalculator
 from .models import (
     Session, Set, Exercise, VolumeStats, OneRMStats, 
     ProgressionStats, ExerciseAnalytics, DashboardData
@@ -22,6 +22,21 @@ logger = logging.getLogger(__name__)
 
 # TypeVar pour la méthode générique safe_extract_value
 T = TypeVar('T')
+
+# Types Literal pour les opérations de base de données
+DatabaseOperation = Literal[
+    "récupération des sessions",
+    "récupération de la session", 
+    "récupération des sets",
+    "récupération des exercices",
+    "récupération des exercices pratiqués",
+    "insertion de session",
+    "insertion de set",
+    "mise à jour de session",
+    "mise à jour de set",
+    "suppression de session",
+    "suppression de set"
+]
 
 
 class DatabaseService:
@@ -91,12 +106,12 @@ class DatabaseService:
         except Exception as e:
             self._handle_database_error("récupération de la session", e)
         
-    def _handle_database_error(self, operation: str, error: Exception) -> NoReturn:
+    def _handle_database_error(self, operation: DatabaseOperation, error: Exception) -> NoReturn:
         """
         Gère les erreurs de base de données de manière cohérente.
         
         Args:
-            operation: Description de l'opération qui a échoué
+            operation: Description typée de l'opération qui a échoué
             error: Exception capturée
             
         Raises:
@@ -104,7 +119,39 @@ class DatabaseService:
         """
         error_msg = f"Erreur lors de {operation}: {error}"
         logger.error(error_msg)
-        raise HTTPException(status_code=500, detail=f"Erreur lors de {operation}")
+        
+        # Vérifier si c'est un problème de connexion à la base de données
+        error_str = str(error).lower()
+        if any(keyword in error_str for keyword in [
+            'connection', 'connexion', 'role', 'authentication', 'password', 
+            'database', 'server', 'host', 'port', 'timeout'
+        ]):
+            # Erreur de connexion DB - retourner 503 Service Unavailable
+            raise HTTPException(
+                status_code=503, 
+                detail=f"Service de base de données indisponible lors de {operation}"
+            )
+        else:
+            # Autre erreur - retourner 500 Internal Server Error
+            raise HTTPException(status_code=500, detail=f"Erreur lors de {operation}")
+    
+    def _is_connection_error(self, error: Exception) -> bool:
+        """
+        Détermine si une erreur est liée à la connexion à la base de données.
+        
+        Args:
+            error: Exception à analyser
+            
+        Returns:
+            True si c'est une erreur de connexion
+        """
+        error_str = str(error).lower()
+        connection_keywords = [
+            'connection', 'connexion', 'role', 'authentication', 'password', 
+            'database', 'server', 'host', 'port', 'timeout', 'refused',
+            'does not exist', 'failed for user'
+        ]
+        return any(keyword in error_str for keyword in connection_keywords)
     
     def get_sets(self, session_id: Optional[int] = None,
                  exercise: Optional[str] = None,
@@ -155,8 +202,7 @@ class DatabaseService:
                 for row in results
             ]
         except Exception as e:
-            logger.error(f"Erreur lors de la récupération des sets: {e}")
-            raise HTTPException(status_code=500, detail="Erreur lors de la récupération des sets")
+            self._handle_database_error("récupération des sets", e)
     
     def get_exercises(self) -> List[Exercise]:
         """Récupère tous les exercices du catalogue"""
@@ -179,8 +225,7 @@ class DatabaseService:
                 for row in results
             ]
         except Exception as e:
-            logger.error(f"Erreur lors de la récupération des exercices: {e}")
-            raise HTTPException(status_code=500, detail="Erreur lors de la récupération des exercices")
+            self._handle_database_error("récupération des exercices", e)
     
     def get_unique_exercises_from_sets(self) -> List[str]:
         """Récupère la liste unique des exercices pratiqués"""
@@ -190,8 +235,7 @@ class DatabaseService:
             results = self.db.execute_query(query)
             return [row[0] for row in results]
         except Exception as e:
-            logger.error(f"Erreur lors de la récupération des exercices pratiqués: {e}")
-            raise HTTPException(status_code=500, detail="Erreur lors de la récupération des exercices")
+            self._handle_database_error("récupération des exercices pratiqués", e)
 
 
 class AnalyticsService:

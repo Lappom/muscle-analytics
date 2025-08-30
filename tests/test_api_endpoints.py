@@ -18,7 +18,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 # Configuration d'environnement de test
 os.environ['APP_ENV'] = 'test'
 
-from src.api.main import app
+# Import paresseux de l'app pour éviter les problèmes avec les overrides de dépendances
+def get_app():
+    """Fonction pour obtenir l'instance de l'app de manière paresseuse"""
+    from src.api.main import app
+    return app
 
 
 class TestAPIEndpoints:
@@ -44,6 +48,8 @@ class TestAPIEndpoints:
         """Test de récupération des sessions"""
         from src.api.services import get_database_service
         
+        app = get_app()
+        
         # Override de la dépendance
         app.dependency_overrides[get_database_service] = lambda: mock_db_service
         
@@ -62,6 +68,7 @@ class TestAPIEndpoints:
         """Test de récupération des sessions avec filtre de date"""
         from src.api.services import get_database_service
         
+        app = get_app()
         app.dependency_overrides[get_database_service] = lambda: mock_db_service
         
         try:
@@ -79,6 +86,7 @@ class TestAPIEndpoints:
         """Test de récupération des détails d'une session"""
         from src.api.services import get_database_service
         
+        app = get_app()
         app.dependency_overrides[get_database_service] = lambda: mock_db_service
         
         try:
@@ -98,6 +106,7 @@ class TestAPIEndpoints:
         # Mock pour retourner les sessions existantes, mais pas la session 999
         mock_db_service.get_sessions.return_value = sample_sessions
         
+        app = get_app()
         app.dependency_overrides[get_database_service] = lambda: mock_db_service
         
         try:
@@ -111,6 +120,7 @@ class TestAPIEndpoints:
         """Test de récupération des sets"""
         from src.api.services import get_database_service
         
+        app = get_app()
         app.dependency_overrides[get_database_service] = lambda: mock_db_service
         
         try:
@@ -127,6 +137,7 @@ class TestAPIEndpoints:
         """Test de récupération des sets avec filtres"""
         from src.api.services import get_database_service
         
+        app = get_app()
         app.dependency_overrides[get_database_service] = lambda: mock_db_service
         
         try:
@@ -148,6 +159,7 @@ class TestAPIEndpoints:
         """Test de récupération du catalogue d'exercices"""
         from src.api.services import get_database_service
         
+        app = get_app()
         app.dependency_overrides[get_database_service] = lambda: mock_db_service
         
         try:
@@ -164,6 +176,7 @@ class TestAPIEndpoints:
         """Test de récupération des exercices pratiqués"""
         from src.api.services import get_database_service
         
+        app = get_app()
         app.dependency_overrides[get_database_service] = lambda: mock_db_service
         
         try:
@@ -183,9 +196,9 @@ class TestAnalyticsEndpoints:
     
     def test_get_volume_analytics(self, client, mock_analytics_service):
         """Test des analytics de volume"""
-        from src.api.main import app
         from src.api.services import get_analytics_service
         
+        app = get_app()
         # Override les dépendances FastAPI
         app.dependency_overrides[get_analytics_service] = lambda: mock_analytics_service
         
@@ -202,9 +215,9 @@ class TestAnalyticsEndpoints:
     
     def test_get_one_rm_analytics(self, client, mock_analytics_service):
         """Test des analytics de 1RM"""
-        from src.api.main import app
         from src.api.services import get_analytics_service
         
+        app = get_app()
         # Override les dépendances FastAPI
         app.dependency_overrides[get_analytics_service] = lambda: mock_analytics_service
         
@@ -221,9 +234,9 @@ class TestAnalyticsEndpoints:
     
     def test_get_progression_analytics(self, client, mock_analytics_service):
         """Test des analytics de progression"""
-        from src.api.main import app
         from src.api.services import get_analytics_service
         
+        app = get_app()
         # Override les dépendances FastAPI
         app.dependency_overrides[get_analytics_service] = lambda: mock_analytics_service
         
@@ -240,9 +253,9 @@ class TestAnalyticsEndpoints:
     
     def test_get_exercise_analytics(self, client, mock_analytics_service, mock_db_service):
         """Test des analytics pour un exercice spécifique"""
-        from src.api.main import app
         from src.api.services import get_analytics_service, get_database_service
         
+        app = get_app()
         # Override les dépendances FastAPI
         app.dependency_overrides[get_analytics_service] = lambda: mock_analytics_service
         app.dependency_overrides[get_database_service] = lambda: mock_db_service
@@ -272,9 +285,9 @@ class TestAnalyticsEndpoints:
     
     def test_get_dashboard_analytics(self, client, mock_analytics_service):
         """Test du dashboard"""
-        from src.api.main import app
         from src.api.services import get_analytics_service
         
+        app = get_app()
         # Override les dépendances FastAPI
         app.dependency_overrides[get_analytics_service] = lambda: mock_analytics_service
         
@@ -291,9 +304,9 @@ class TestAnalyticsEndpoints:
     
     def test_analytics_with_date_filters(self, client, mock_analytics_service):
         """Test des analytics avec filtres de date"""
-        from src.api.main import app
         from src.api.services import get_analytics_service
         
+        app = get_app()
         # Override les dépendances FastAPI
         app.dependency_overrides[get_analytics_service] = lambda: mock_analytics_service
         
@@ -327,6 +340,7 @@ class TestStatusEndpoint:
         mock_db_service.get_sessions.return_value = [Mock(date=date.today())]
         mock_db_service.get_unique_exercises_from_sets.return_value = ["Exercise1", "Exercise2"]
         
+        app = get_app()
         app.dependency_overrides[get_database_service] = lambda: mock_db_service
         
         try:
@@ -348,6 +362,7 @@ class TestStatusEndpoint:
         mock_db_service = Mock()
         mock_db_service.db.test_connection.side_effect = Exception("DB Error")
         
+        app = get_app()
         app.dependency_overrides[get_database_service] = lambda: mock_db_service
         
         try:
