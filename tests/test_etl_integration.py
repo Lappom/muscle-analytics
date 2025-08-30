@@ -1,6 +1,23 @@
 """
-Tests pour les scripts ETL et la base de données.
+Tests d'intégration pour l'ETL et la base de données.
+
+Ce module teste les fonctionnalités complètes d'importation et de traitement des données,
+avec une configuration de base de données sécurisée.
 """
+
+import unittest
+import pandas as pd
+from datetime import date, datetime
+from unittest.mock import Mock, patch
+import tempfile
+import os
+
+# Configuration d'environnement de test sécurisée
+from .test_env_config import ensure_test_environment, get_safe_test_config
+ensure_test_environment()
+
+from src.database import DatabaseManager, DatabaseError, get_database_config, DatabaseEnvironment
+from src.etl.pipeline import ETLImporter
 
 import unittest
 import pandas as pd
@@ -32,8 +49,8 @@ class TestDatabaseManager(unittest.TestCase):
     
     def setUp(self):
         """Configuration des tests"""
-        # Utilisation de la configuration sécurisée unifiée
-        db_config = get_database_config(DatabaseEnvironment.TEST)
+        # Utilisation de la configuration sécurisée
+        db_config = get_safe_test_config()
         self.db_manager = DatabaseManager(**db_config)
     
     def test_connection_params(self):
@@ -80,7 +97,7 @@ class TestETLImporter(unittest.TestCase):
         """Configuration des tests"""
         # Créer un importer avec configuration sécurisée
         try:
-            db_config = get_database_config(DatabaseEnvironment.TEST)
+            db_config = get_safe_test_config()
             db_manager = DatabaseManager(**db_config)
             
             # Tester la connexion

@@ -11,11 +11,6 @@ import sys
 import os
 from pathlib import Path
 
-# Ajouter le répertoire src au PYTHONPATH
-project_root = Path(__file__).parent.parent
-src_path = project_root / "src"
-sys.path.insert(0, str(src_path))
-
 
 def main():
     """Lance l'API FastAPI"""
@@ -26,6 +21,9 @@ def main():
     parser.add_argument("--log-level", default="info", help="Niveau de log (défaut: info)")
     
     args = parser.parse_args()
+    
+    # Définition du répertoire racine du projet (nécessaire pour uvicorn)
+    project_root = Path(__file__).parent.parent
     
     print(f"🚀 Démarrage de l'API Muscle-Analytics")
     print(f"🌐 URL: http://{args.host}:{args.port}")

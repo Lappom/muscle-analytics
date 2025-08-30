@@ -9,7 +9,6 @@ import requests
 import json
 import pandas as pd
 from datetime import date, timedelta
-import matplotlib.pyplot as plt
 import seaborn as sns
 from typing import List, Dict, Any
 import sys

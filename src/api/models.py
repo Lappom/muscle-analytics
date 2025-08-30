@@ -2,7 +2,7 @@
 Modèles Pydantic pour l'API Muscle-Analytics
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict
 from datetime import date, datetime
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
@@ -21,8 +21,7 @@ class Session(SessionBase):
     id: int
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SetBase(BaseModel):
@@ -41,8 +40,7 @@ class Set(SetBase):
     session_id: int
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Exercise(BaseModel):
@@ -53,8 +51,7 @@ class Exercise(BaseModel):
     muscles_secondary: Optional[List[str]] = None
     created_at: datetime
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 # Modèles pour les features calculées

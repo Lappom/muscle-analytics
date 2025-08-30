@@ -1,9 +1,12 @@
 """
-Services et dépendances pour l'API Muscle-Analytics
+Services et dépendances pour l'API Muscle-Analytics.
+
+Ce module contient les services de base de données et d'analytics
+utilisés par les endpoints de l'API FastAPI.
 """
 
 import pandas as pd
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 from datetime import date, datetime, timedelta
 from fastapi import Depends, HTTPException
 import logging
@@ -58,8 +61,22 @@ class DatabaseService:
                 for row in results
             ]
         except Exception as e:
-            logger.error(f"Erreur lors de la récupération des sessions: {e}")
-            raise HTTPException(status_code=500, detail="Erreur lors de la récupération des sessions")
+            self._handle_database_error("récupération des sessions", e)
+        
+    def _handle_database_error(self, operation: str, error: Exception) -> None:
+        """
+        Gère les erreurs de base de données de manière cohérente.
+        
+        Args:
+            operation: Description de l'opération qui a échoué
+            error: Exception capturée
+            
+        Raises:
+            HTTPException: Exception formatée pour FastAPI
+        """
+        error_msg = f"Erreur lors de {operation}: {error}"
+        logger.error(error_msg)
+        raise HTTPException(status_code=500, detail=f"Erreur lors de {operation}")
     
     def get_sets(self, session_id: Optional[int] = None,
                  exercise: Optional[str] = None,
@@ -156,45 +173,111 @@ class AnalyticsService:
         self.db_service = db_service
         self.feature_calculator = FeatureCalculator()
     
-    def _sets_to_dataframe(self, sets: List[Set]) -> pd.DataFrame:
-        """Convertit une liste de sets en DataFrame pour les calculs"""
-        if not sets:
+    def _safe_extract_value(self, df: pd.DataFrame, column: str, 
+                           value_type: type = float, use_max: bool = False, 
+                           default: Any = None) -> Any:
+        """
+        Extrait une valeur typée d'une colonne DataFrame de manière sécurisée.
+        
+        Args:
+            df: DataFrame source
+            column: Nom de la colonne
+            value_type: Type de valeur attendu (float, int, str, bool)
+            use_max: Si True, utilise max() sinon iloc[-1]
+            default: Valeur par défaut si extraction impossible
+            
+        Returns:
+            Valeur extraite ou default
+        """
+        if column not in df.columns or df.empty:
+            return default
+        
+        try:
+            if use_max:
+                raw_value = df[column].max()
+            else:
+                raw_value = df[column].iloc[-1]
+            
+            if pd.isna(raw_value):
+                return default
+                
+            if value_type == bool:
+                return bool(raw_value)
+            elif value_type == str:
+                return str(raw_value)
+            else:
+                return value_type(raw_value)
+                
+        except (ValueError, TypeError, IndexError):
+            return default
+    
+    def _safe_extract_float(self, df: pd.DataFrame, column: str, use_max: bool = False) -> Optional[float]:
+        """Extrait une valeur float d'une colonne."""
+        return self._safe_extract_value(df, column, float, use_max)
+    
+    def _safe_extract_int(self, df: pd.DataFrame, column: str) -> Optional[int]:
+        """Extrait une valeur int d'une colonne."""
+        return self._safe_extract_value(df, column, int)
+    
+    def _safe_extract_bool(self, df: pd.DataFrame, column: str, default: bool = False) -> bool:
+        """Extrait une valeur bool d'une colonne."""
+        return self._safe_extract_value(df, column, bool, default=default)
+    
+    def _safe_extract_str(self, df: pd.DataFrame, column: str) -> Optional[str]:
+        """Extrait une valeur string d'une colonne."""
+        return self._safe_extract_value(df, column, str)
+    
+    def _convert_to_dataframe(self, data_list: List, data_type: str) -> pd.DataFrame:
+        """
+        Convertit une liste d'objets en DataFrame de manière générique.
+        
+        Args:
+            data_list: Liste des objets à convertir
+            data_type: Type de données ('sets' ou 'sessions')
+            
+        Returns:
+            DataFrame correspondant
+        """
+        if not data_list:
             return pd.DataFrame()
         
-        data = []
-        for set_obj in sets:
-            data.append({
-                'id': set_obj.id,
-                'session_id': set_obj.session_id,
-                'exercise': set_obj.exercise,
-                'series_type': set_obj.series_type,
-                'reps': set_obj.reps,
-                'weight_kg': float(set_obj.weight_kg) if set_obj.weight_kg else None,
-                'notes': set_obj.notes,
-                'skipped': set_obj.skipped,
-                'created_at': set_obj.created_at
-            })
-        
-        df = pd.DataFrame(data)
-        return df
+        if data_type == 'sets':
+            return pd.DataFrame([
+                {
+                    'id': item.id,
+                    'session_id': item.session_id,
+                    'exercise': item.exercise,
+                    'series_type': item.series_type,
+                    'reps': item.reps,
+                    'weight_kg': float(item.weight_kg) if item.weight_kg else None,
+                    'notes': item.notes,
+                    'skipped': item.skipped,
+                    'created_at': item.created_at
+                }
+                for item in data_list
+            ])
+        elif data_type == 'sessions':
+            return pd.DataFrame([
+                {
+                    'id': item.id,
+                    'date': item.date,
+                    'start_time': item.start_time,
+                    'training_name': item.training_name,
+                    'notes': item.notes,
+                    'created_at': item.created_at
+                }
+                for item in data_list
+            ])
+        else:
+            raise ValueError(f"Type de données non supporté: {data_type}")
+    
+    def _sets_to_dataframe(self, sets: List[Set]) -> pd.DataFrame:
+        """Convertit une liste de sets en DataFrame pour les calculs."""
+        return self._convert_to_dataframe(sets, 'sets')
     
     def _sessions_to_dataframe(self, sessions: List[Session]) -> pd.DataFrame:
-        """Convertit une liste de sessions en DataFrame"""
-        if not sessions:
-            return pd.DataFrame()
-        
-        data = []
-        for session in sessions:
-            data.append({
-                'id': session.id,
-                'date': session.date,
-                'start_time': session.start_time,
-                'training_name': session.training_name,
-                'notes': session.notes,
-                'created_at': session.created_at
-            })
-        
-        return pd.DataFrame(data)
+        """Convertit une liste de sessions en DataFrame."""
+        return self._convert_to_dataframe(sessions, 'sessions')
     
     def get_volume_analytics(self, exercise: Optional[str] = None,
                            start_date: Optional[date] = None,
@@ -213,7 +296,7 @@ class AnalyticsService:
         
         # Calcul des features
         features_df = self.feature_calculator.calculate_all_features(
-            df, sessions_df, include_1rm=False, include_progression=False
+            df, sessions_df, include_1rm=False
         )
         
         # Groupement par exercice
@@ -227,8 +310,8 @@ class AnalyticsService:
                     total_volume=float(exercise_data['volume'].sum()),
                     avg_volume_per_set=float(exercise_data['volume'].mean()),
                     avg_volume_per_session=float(exercise_data.groupby('session_id')['volume'].sum().mean()),
-                    weekly_volume=float(exercise_data['weekly_volume'].iloc[-1]) if 'weekly_volume' in exercise_data.columns else None,
-                    monthly_volume=float(exercise_data['monthly_volume'].iloc[-1]) if 'monthly_volume' in exercise_data.columns else None
+                    weekly_volume=self._safe_extract_float(exercise_data, 'weekly_volume'),
+                    monthly_volume=self._safe_extract_float(exercise_data, 'monthly_volume')
                 ))
         
         return volume_stats
@@ -254,7 +337,7 @@ class AnalyticsService:
         
         # Calcul des features
         features_df = self.feature_calculator.calculate_all_features(
-            df, sessions_df, include_progression=False
+            df, sessions_df
         )
         
         # Groupement par exercice
@@ -265,16 +348,16 @@ class AnalyticsService:
             if not exercise_data.empty:
                 one_rm_stats.append(OneRMStats(
                     exercise=exercise_name,
-                    best_1rm_epley=float(exercise_data['1rm_epley'].max()) if '1rm_epley' in exercise_data.columns else None,
-                    best_1rm_brzycki=float(exercise_data['1rm_brzycki'].max()) if '1rm_brzycki' in exercise_data.columns else None,
-                    best_1rm_lander=float(exercise_data['1rm_lander'].max()) if '1rm_lander' in exercise_data.columns else None,
-                    best_1rm_oconner=float(exercise_data['1rm_oconner'].max()) if '1rm_oconner' in exercise_data.columns else None,
-                    best_1rm_average=float(exercise_data['1rm_average'].max()) if '1rm_average' in exercise_data.columns else None,
-                    current_1rm_epley=float(exercise_data['1rm_epley'].iloc[-1]) if '1rm_epley' in exercise_data.columns else None,
-                    current_1rm_brzycki=float(exercise_data['1rm_brzycki'].iloc[-1]) if '1rm_brzycki' in exercise_data.columns else None,
-                    current_1rm_lander=float(exercise_data['1rm_lander'].iloc[-1]) if '1rm_lander' in exercise_data.columns else None,
-                    current_1rm_oconner=float(exercise_data['1rm_oconner'].iloc[-1]) if '1rm_oconner' in exercise_data.columns else None,
-                    current_1rm_average=float(exercise_data['1rm_average'].iloc[-1]) if '1rm_average' in exercise_data.columns else None
+                    best_1rm_epley=self._safe_extract_float(exercise_data, '1rm_epley', use_max=True),
+                    best_1rm_brzycki=self._safe_extract_float(exercise_data, '1rm_brzycki', use_max=True),
+                    best_1rm_lander=self._safe_extract_float(exercise_data, '1rm_lander', use_max=True),
+                    best_1rm_oconner=self._safe_extract_float(exercise_data, '1rm_oconner', use_max=True),
+                    best_1rm_average=self._safe_extract_float(exercise_data, '1rm_average', use_max=True),
+                    current_1rm_epley=self._safe_extract_float(exercise_data, '1rm_epley'),
+                    current_1rm_brzycki=self._safe_extract_float(exercise_data, '1rm_brzycki'),
+                    current_1rm_lander=self._safe_extract_float(exercise_data, '1rm_lander'),
+                    current_1rm_oconner=self._safe_extract_float(exercise_data, '1rm_oconner'),
+                    current_1rm_average=self._safe_extract_float(exercise_data, '1rm_average')
                 ))
         
         return one_rm_stats
@@ -309,11 +392,11 @@ class AnalyticsService:
                 progression_stats.append(ProgressionStats(
                     exercise=exercise_name,
                     total_sessions=exercise_sessions,
-                    progression_trend=exercise_data['progression_trend'].iloc[-1] if 'progression_trend' in exercise_data.columns else None,
-                    volume_trend_7d=float(exercise_data['volume_trend_7d'].iloc[-1]) if 'volume_trend_7d' in exercise_data.columns else None,
-                    volume_trend_30d=float(exercise_data['volume_trend_30d'].iloc[-1]) if 'volume_trend_30d' in exercise_data.columns else None,
-                    plateau_detected=bool(exercise_data['plateau_detected'].iloc[-1]) if 'plateau_detected' in exercise_data.columns else False,
-                    days_since_last_pr=int(exercise_data['days_since_last_pr'].iloc[-1]) if 'days_since_last_pr' in exercise_data.columns else None
+                    progression_trend=self._safe_extract_str(exercise_data, 'progression_trend'),
+                    volume_trend_7d=self._safe_extract_float(exercise_data, 'volume_trend_7d'),
+                    volume_trend_30d=self._safe_extract_float(exercise_data, 'volume_trend_30d'),
+                    plateau_detected=self._safe_extract_bool(exercise_data, 'plateau_detected', False),
+                    days_since_last_pr=self._safe_extract_int(exercise_data, 'days_since_last_pr')
                 ))
         
         return progression_stats

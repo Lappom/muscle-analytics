@@ -10,7 +10,7 @@ from datetime import date
 from .models import (
     Session, Set, Exercise, VolumeStats, OneRMStats, 
     ProgressionStats, ExerciseAnalytics, DashboardData,
-    SessionWithSets, AnalyticsRequest, ErrorResponse
+    SessionWithSets
 )
 from .services import DatabaseService, AnalyticsService, get_database_service, get_analytics_service
 
@@ -85,12 +85,12 @@ async def get_session_details(
         session = next((s for s in sessions if s.id == session_id), None)
         
         if not session:
-            raise HTTPException(status_code=404, detail="Session non trouvée")
+            raise HTTPException(status_code=404, detail=f"Session avec ID {session_id} non trouvée")
         
         sets = db_service.get_sets(session_id=session_id)
         
         return SessionWithSets(
-            **session.dict(),
+            **session.model_dump(),
             sets=sets
         )
     except HTTPException:
@@ -204,7 +204,8 @@ async def get_exercise_analytics(
     exercise_name: str,
     start_date: Optional[date] = Query(None, description="Date de début (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Date de fin (YYYY-MM-DD)"),
-    analytics_service: AnalyticsService = Depends(get_analytics_service)
+    analytics_service: AnalyticsService = Depends(get_analytics_service),
+    db_service: DatabaseService = Depends(get_database_service)
 ):
     """Récupère tous les analytics pour un exercice spécifique"""
     try:
@@ -219,9 +220,28 @@ async def get_exercise_analytics(
             exercise=exercise_name, start_date=start_date, end_date=end_date
         )
         
-        # Vérification que l'exercice existe
+        # Vérification que l'exercice existe et a des données
         if not volume_stats and not one_rm_stats and not progression_stats:
-            raise HTTPException(status_code=404, detail="Exercice non trouvé ou sans données")
+            # Vérifier si l'exercice existe dans la base de données
+            existing_exercises = db_service.get_unique_exercises_from_sets()
+            
+            if exercise_name not in existing_exercises:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"Exercice '{exercise_name}' non trouvé dans la base de données"
+                )
+            else:
+                # L'exercice existe mais n'a pas de données pour la période - retourner une réponse vide
+                return ExerciseAnalytics(
+                    exercise=exercise_name,
+                    volume_stats=VolumeStats(
+                        exercise=exercise_name, total_volume=0, avg_volume_per_set=0, avg_volume_per_session=0
+                    ),
+                    one_rm_stats=OneRMStats(exercise=exercise_name),
+                    progression_stats=ProgressionStats(
+                        exercise=exercise_name, total_sessions=0, plateau_detected=False
+                    )
+                )
         
         # Construction de la réponse
         return ExerciseAnalytics(

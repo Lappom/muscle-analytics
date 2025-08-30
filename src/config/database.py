@@ -77,8 +77,8 @@ class DatabaseConfig:
             'host': os.getenv('TEST_DB_HOST', 'localhost'),
             'port': int(os.getenv('TEST_DB_PORT', '5432')),  # Port identique au CI
             'database': os.getenv('TEST_DB_NAME', 'muscle_analytics_test'),
-            'user': os.getenv('TEST_DB_USER', 'test_user'),
-            'password': os.getenv('TEST_DB_PASSWORD', 'test_password')
+            'user': os.getenv('TEST_DB_USER', 'postgres'),
+            'password': os.getenv('TEST_DB_PASSWORD', 'password')
         }
     
     def _get_prod_config(self) -> Dict[str, Any]:
