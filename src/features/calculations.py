@@ -31,6 +31,21 @@ class FeatureCalculator:
         self.one_rm_calc = OneRMCalculator()
         self.progression_analyzer = ProgressionAnalyzer()
     
+    def calculate_estimated_set_duration(self, reps: Union[int, float]) -> float:
+        """
+        Calcule la durée estimée d'un set.
+        
+        Args:
+            reps: Nombre de répétitions
+            
+        Returns:
+            Durée estimée en secondes
+        """
+        if pd.isna(reps) or reps <= 0:
+            return np.nan
+        
+        return reps * self.SECONDS_PER_REP + self.SET_REST_TIME
+    
     def calculate_all_features(self, df: pd.DataFrame,
                              sessions_df: Optional[pd.DataFrame] = None,
                              include_1rm: bool = True,
@@ -96,8 +111,8 @@ class FeatureCalculator:
         )
         
         # Densité du set (volume / temps estimé)
-        # Estimation basée sur temps par répétition + temps de repos
-        df['estimated_set_duration'] = df['reps'] * self.SECONDS_PER_REP + self.SET_REST_TIME  # secondes
+        # Utilisation de la méthode dédiée pour calculer la durée
+        df['estimated_set_duration'] = df['reps'].apply(self.calculate_estimated_set_duration)
         df['volume_density'] = np.where(
             df['estimated_set_duration'] > 0,
             df['volume'] / df['estimated_set_duration'] * 60,  # volume par minute

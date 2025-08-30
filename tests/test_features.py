@@ -304,6 +304,25 @@ class TestFeatureCalculator:
         
         assert result['global_statistics']['total_sessions'] == 2
         assert result['global_statistics']['total_exercises'] == 2
+    
+    def test_calculate_estimated_set_duration(self):
+        """Test calcul de durée estimée d'un set."""
+        # Test cas normal
+        duration = self.feature_calc.calculate_estimated_set_duration(10)
+        expected = 10 * self.feature_calc.SECONDS_PER_REP + self.feature_calc.SET_REST_TIME
+        assert duration == expected
+        
+        # Test avec 0 reps
+        duration_zero = self.feature_calc.calculate_estimated_set_duration(0)
+        assert pd.isna(duration_zero)
+        
+        # Test avec valeur NaN
+        duration_nan = self.feature_calc.calculate_estimated_set_duration(np.nan)
+        assert pd.isna(duration_nan)
+        
+        # Test avec valeur négative
+        duration_neg = self.feature_calc.calculate_estimated_set_duration(-5)
+        assert pd.isna(duration_neg)
 
 
 # Tests d'intégration
