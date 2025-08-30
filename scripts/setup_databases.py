@@ -15,18 +15,18 @@ import sys
 import os
 from pathlib import Path
 
-# Ajouter le dossier src au PYTHONPATH
-sys.path.insert(0, str(Path(__file__).parent / "src"))
-
+# Import direct depuis le package installé
 try:
     from config.database import (
         DatabaseConfig, DatabaseEnvironment, 
         get_db_config, setup_database_environment
     )
-    from etl.database import DatabaseManager
+    from database import DatabaseManager
 except ImportError as e:
     print(f"❌ Erreur d'import: {e}")
-    print("💡 Assurez-vous d'être dans le dossier muscle-analytics")
+    print("💡 Assurez-vous que le package muscle-analytics est installé:")
+    print("   pip install -e .")
+    print("💡 Et que vous êtes dans l'environnement virtuel approprié")
     sys.exit(1)
 
 
@@ -145,7 +145,7 @@ def demo():
     print("""
 # Utilisation simple
 from src.config.database import get_db_config, DatabaseEnvironment
-from src.etl.database import DatabaseManager
+from src.database import DatabaseManager
 
 # Configuration automatique
 config = get_db_config()

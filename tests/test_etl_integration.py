@@ -1,30 +1,33 @@
 """
-Tests pour les scripts ETL et la base de données.
+Tests d'intégration pour l'ETL et la base de données.
+
+Ce module teste les fonctionnalités complètes d'importation et de traitement des données,
+avec une configuration de base de données sécurisée.
+
+Configuration d'environnement:
+- La fixture 'test_environment' configure automatiquement l'environnement de test
+- Utilisez 'get_safe_test_config()' dans setUp() pour obtenir la configuration DB
+- Les variables d'environnement sont standardisées pour éviter les conflits
 """
 
 import unittest
 import pandas as pd
 from datetime import date, datetime
-from pathlib import Path
+from unittest.mock import Mock, patch
 import tempfile
 import os
-import sys
+from pathlib import Path
 import logging
 
 # Configuration du logger
 logger = logging.getLogger(__name__)
 
-# Ajout du chemin pour les imports
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
-sys.path.insert(0, str(Path(__file__).parent))  # Pour test_config
+# Configuration d'environnement de test sécurisée
+from .test_env_config import get_safe_test_config
 
-# Import du module ETL original + configuration unifiée
-from etl.database import DatabaseManager, DatabaseError
-from etl.import_scripts import ETLImporter
-from etl.pipeline import ETLPipeline
-
-# Import de la configuration unifiée
-from database import get_database_config, DatabaseEnvironment
+from src.database import DatabaseManager, DatabaseError, get_database_config, DatabaseEnvironment
+from src.etl.import_scripts import ETLImporter
+from src.etl.pipeline import ETLPipeline
 
 
 class TestDatabaseManager(unittest.TestCase):
@@ -32,8 +35,9 @@ class TestDatabaseManager(unittest.TestCase):
     
     def setUp(self):
         """Configuration des tests"""
-        # Utilisation de la configuration sécurisée unifiée
-        db_config = get_database_config(DatabaseEnvironment.TEST)
+        # Utilisation de la configuration sécurisée
+        # Note: L'environnement de test est configuré automatiquement via la fixture 'test_environment'
+        db_config = get_safe_test_config()
         self.db_manager = DatabaseManager(**db_config)
     
     def test_connection_params(self):
@@ -80,7 +84,7 @@ class TestETLImporter(unittest.TestCase):
         """Configuration des tests"""
         # Créer un importer avec configuration sécurisée
         try:
-            db_config = get_database_config(DatabaseEnvironment.TEST)
+            db_config = get_safe_test_config()
             db_manager = DatabaseManager(**db_config)
             
             # Tester la connexion
@@ -364,6 +368,31 @@ class TestDataValidation(unittest.TestCase):
         self.assertEqual(quality['total_rows'], 0)
         self.assertEqual(quality['valid_sets'], 0)
         self.assertEqual(quality['quality_percentage'], 0.0)
+
+
+# =============================================================================
+# EXEMPLE D'UTILISATION AVEC PYTEST MODERNE (RECOMMANDÉ)
+# =============================================================================
+
+def test_database_manager_with_fixture(safe_test_config):
+    """
+    Exemple de test utilisant la fixture pytest moderne.
+    
+    Cette approche est recommandée pour les nouveaux tests car elle:
+    - Évite les appels directs à ensure_test_environment()
+    - Utilise l'injection de dépendance pytest
+    - Simplifie la gestion de la configuration
+    
+    Args:
+        safe_test_config: Fixture qui retourne la configuration de test sécurisée
+    """
+    # Configuration automatique via la fixture
+    db_manager = DatabaseManager(**safe_test_config)
+    
+    # Tests
+    assert db_manager.connection_params.get('host') is not None
+    assert db_manager.connection_params.get('database') is not None
+    assert db_manager.connection_params.get('user') == 'test_user'  # Standardisé
 
 
 def run_tests():

@@ -3,9 +3,9 @@
 Test rapide pour valider la nouvelle méthode _parse_muscle_list
 """
 
-import sys
 import pandas as pd
-from src.etl.database import DatabaseManager
+
+from src.database import DatabaseManager
 
 def test_parse_muscle_list():
     """Test de la méthode _parse_muscle_list"""

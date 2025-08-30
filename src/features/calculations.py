@@ -1,55 +1,112 @@
 """
-Module principal de calcul des features avancées.
+Module principal de calcul des features avancées pour l'analyse de musculation.
 
-Ce module orchestre tous les calculs de features :
-- Volume d'entraînement
-- 1RM estimé
-- Progression et tendances
-- Métriques de performance
+Ce module combine tous les calculateurs spécialisés pour produire
+un ensemble complet de features d'entraînement.
 """
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional, Union
+import logging
+from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 
 from .volume import VolumeCalculator
 from .one_rm import OneRMCalculator
 from .progression import ProgressionAnalyzer
 
+# Configuration du logger
+logger = logging.getLogger(__name__)
+
 
 class FeatureCalculator:
     """Calculateur principal pour toutes les features avancées."""
     
-    # Constantes pour estimation de durée des sets
-    SECONDS_PER_REP = 2.5      # Temps estimé par répétition (secondes)
-    SET_REST_TIME = 60         # Temps de repos estimé entre les sets (secondes)
+    # Valeurs par défaut pour l'estimation de durée
+    DEFAULT_SECONDS_PER_REP = 4  # Temps moyen par répétition en secondes
+    DEFAULT_SET_REST_TIME = 60   # Temps de récupération moyen entre séries
     
-    def __init__(self):
-        """Initialise le calculateur de features."""
-        self.volume_calc = VolumeCalculator()
-        self.one_rm_calc = OneRMCalculator()
+    def __init__(self, seconds_per_rep: float = DEFAULT_SECONDS_PER_REP, 
+                 set_rest_time: float = DEFAULT_SET_REST_TIME):
+        """
+        Initialise les calculateurs spécialisés.
+        
+        Args:
+            seconds_per_rep: Temps moyen par répétition en secondes (défaut: 4)
+            set_rest_time: Temps de récupération moyen entre séries en secondes (défaut: 60)
+        
+        Examples:
+            # Utilisation avec valeurs par défaut
+            calc = FeatureCalculator()
+            
+            # Personnalisation pour un entraînement plus rapide
+            calc_fast = FeatureCalculator(seconds_per_rep=3.0, set_rest_time=45.0)
+        """
+        self.volume_calculator = VolumeCalculator()
+        self.one_rm_calculator = OneRMCalculator()
         self.progression_analyzer = ProgressionAnalyzer()
+        
+        # Configuration des paramètres de timing
+        self.seconds_per_rep = seconds_per_rep
+        self.set_rest_time = set_rest_time
     
-    def calculate_estimated_set_duration(self, reps: Union[int, float]) -> float:
+    def _validate_numeric_columns(self, df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
+        """
+        Valide et nettoie les colonnes numériques pour optimiser les calculs suivants.
+        
+        Args:
+            df: DataFrame à valider
+            columns: Liste des colonnes à valider
+            
+        Returns:
+            DataFrame avec colonnes validées
+        """
+        result_df = df.copy()
+        
+        for col in columns:
+            if col in result_df.columns:
+                # Conversion vers numeric, forcer les erreurs à NaN
+                result_df[col] = pd.to_numeric(result_df[col], errors='coerce')
+                # Remplacer les valeurs négatives/nulles par NaN pour les calculs
+                if col in ['reps', 'weight_kg']:  # Colonnes qui doivent être positives
+                    result_df.loc[result_df[col] <= 0, col] = np.nan
+        
+        return result_df
+    
+    def calculate_estimated_set_duration(self, reps: Union[int, float, pd.Series]) -> Union[float, pd.Series]:
         """
         Calcule la durée estimée d'un set.
         
         Args:
-            reps: Nombre de répétitions
+            reps: Nombre de répétitions (peut être un scalaire ou une Series pandas)
             
         Returns:
-            Durée estimée en secondes
+            Durée estimée en secondes (scalaire ou Series selon l'entrée)
         """
-        if pd.isna(reps) or reps <= 0:
+        # Gestion vectorisée pour les Series pandas (plus efficace pour les gros datasets)
+        if isinstance(reps, pd.Series):
+            # Validation vectorisée optimisée : évite isinstance sur chaque élément
+            # On suppose que les données sont déjà validées en amont
+            valid_mask = reps.notna() & (reps > 0)
+            result = pd.Series(np.nan, index=reps.index, dtype='float64')
+            
+            # Application vectorisée de la formule sur les valeurs valides
+            valid_reps = reps[valid_mask]
+            result[valid_mask] = valid_reps * self.seconds_per_rep + self.set_rest_time
+            return result
+        
+        # Gestion scalaire (conservée pour compatibilité)
+        # Cast en float pour éviter les problèmes de type avec pd.isna
+        reps_val = float(reps) if not pd.isna(reps) else np.nan
+        if pd.isna(reps_val) or reps_val <= 0:
             return np.nan
         
-        return reps * self.SECONDS_PER_REP + self.SET_REST_TIME
+        return reps_val * self.seconds_per_rep + self.set_rest_time
     
-    def calculate_all_features(self, df: pd.DataFrame,
+    def calculate_all_features(self, 
+                             df: pd.DataFrame,
                              sessions_df: Optional[pd.DataFrame] = None,
                              include_1rm: bool = True,
-                             include_progression: bool = True,
                              one_rm_formulas: List[str] = ['epley', 'brzycki']) -> pd.DataFrame:
         """
         Calcule toutes les features pour un DataFrame.
@@ -58,7 +115,6 @@ class FeatureCalculator:
             df: DataFrame avec données d'entraînement
             sessions_df: DataFrame des séances avec dates
             include_1rm: Inclure calculs 1RM
-            include_progression: Inclure analyse progression
             one_rm_formulas: Formules 1RM à utiliser
             
         Returns:
@@ -67,255 +123,249 @@ class FeatureCalculator:
         # Copie pour éviter modifications accidentelles
         result_df = df.copy()
         
-        # 1. Calcul du volume
-        result_df = self.volume_calc.calculate_set_volume(result_df)
+        # Validation des données d'entrée
+        if result_df.empty:
+            return result_df
         
-        # 2. Calcul 1RM si demandé
+        # Validation et nettoyage des colonnes numériques pour optimiser les performances
+        numeric_columns = ['reps', 'weight_kg', 'session_id']
+        result_df = self._validate_numeric_columns(result_df, numeric_columns)
+        
+        # === CALCULS VOLUME ===
+        try:
+            result_df = self.volume_calculator.calculate_set_volume(result_df)
+        except Exception as e:
+            logger.error(f"Erreur lors du calcul de volume: {e}", exc_info=True)
+        
+        # === CALCULS 1RM ===
         if include_1rm:
-            result_df = self.one_rm_calc.calculate_dataframe_1rm(
-                result_df, 
-                formulas=one_rm_formulas
-            )
+            try:
+                result_df = self.one_rm_calculator.calculate_dataframe_1rm(
+                    result_df, formulas=one_rm_formulas
+                )
+            except Exception as e:
+                logger.error(f"Erreur lors du calcul 1RM: {e}", exc_info=True)
         
-        # 3. Ajout d'autres métriques calculées
+        # === CALCULS DE PROGRESSION ===
+        # Note: Les calculs de progression retournent des DataFrames agrégés
+        # On les stocke séparément pour éviter d'écraser result_df
+        progression_data = {}
+        try:
+            volume_progression = self.progression_analyzer.calculate_volume_progression(result_df, sessions_df)
+            progression_data['volume_progression'] = volume_progression
+            
+            intensity_progression = self.progression_analyzer.calculate_intensity_progression(result_df, sessions_df)
+            progression_data['intensity_progression'] = intensity_progression
+            
+            # Détection de plateaux (nécessite des données de progression temporelles)
+            # Skip si pas assez de données temporelles
+            if sessions_df is not None and len(result_df) > 6:
+                plateau_data = self.progression_analyzer.detect_plateaus(result_df, 'volume')
+                progression_data['plateau_data'] = plateau_data
+        except Exception as e:
+            logger.error(f"Erreur lors du calcul de progression: {e}", exc_info=True)
+        
+        # === FEATURES DÉRIVÉES ===
         result_df = self._add_derived_features(result_df)
+        
+        # Optionnel: Stocker les données de progression dans les métadonnées
+        if hasattr(result_df, 'attrs'):
+            result_df.attrs['progression_data'] = progression_data
         
         return result_df
     
     def _add_derived_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Ajoute des features dérivées calculées.
+        Ajoute des features dérivées calculées à partir des features de base.
         
         Args:
             df: DataFrame avec features de base
             
         Returns:
-            DataFrame avec features supplémentaires
+            DataFrame avec features dérivées ajoutées
         """
-        df = df.copy()
+        result_df = df.copy()
         
-        # Filtrer les sets principaux pour les calculs
-        main_sets_mask = (df['series_type'] == 'principale') & (df['skipped'] != True)
+        # === INTENSITÉ ===
+        if 'weight_kg' in result_df.columns and 'reps' in result_df.columns:
+            # Intensité relative (ratio poids/reps)
+            result_df['intensity_ratio'] = result_df['weight_kg'] / (result_df['reps'] + 1)
+            result_df['intensity_relative'] = result_df['intensity_ratio']  # Alias pour compatibilité
+            
+            # Charge de travail par répétition
+            result_df['workload_per_rep'] = result_df['weight_kg'] * result_df['reps']
         
-        # Intensité relative (poids / poids corporel si disponible)
-        # Pour l'instant, normalisation par l'exercice
-        exercise_max_weights = (df[main_sets_mask]
-                              .groupby('exercise')['weight_kg']
-                              .max())
+        # === DURÉE ESTIMÉE ===
+        if 'reps' in result_df.columns:
+            # Utilisation vectorisée directe pour de meilleures performances
+            result_df['estimated_duration_seconds'] = self.calculate_estimated_set_duration(result_df['reps'])
+            result_df['estimated_duration_minutes'] = result_df['estimated_duration_seconds'] / 60
         
-        df['intensity_relative'] = df.apply(
-            lambda row: (row['weight_kg'] / exercise_max_weights.get(row['exercise'], 1)
-                        if pd.notna(row['weight_kg']) and exercise_max_weights.get(row['exercise'], 0) > 0
-                        else np.nan),
-            axis=1
-        )
+        # === MÉTRIQUES DE QUALITÉ ===
+        # Densité de volume (volume par minute estimée)
+        if 'volume' in result_df.columns and 'estimated_duration_minutes' in result_df.columns:
+            result_df['volume_density'] = result_df['volume'] / result_df['estimated_duration_minutes']
         
-        # Densité du set (volume / temps estimé)
-        # Utilisation de la méthode dédiée pour calculer la durée
-        df['estimated_set_duration'] = df['reps'].apply(self.calculate_estimated_set_duration)
-        df['volume_density'] = np.where(
-            df['estimated_set_duration'] > 0,
-            df['volume'] / df['estimated_set_duration'] * 60,  # volume par minute
-            np.nan
-        )
-        
-        # Fatigue index (différence entre premier et dernier set de la séance)
-        session_exercise_groups = df[main_sets_mask].groupby(['session_id', 'exercise'])
-        
-        fatigue_data = []
-        for (session_id, exercise), group in session_exercise_groups:
-            if len(group) > 1:
-                first_weight = group.iloc[0]['weight_kg']
-                last_weight = group.iloc[-1]['weight_kg']
-                first_reps = group.iloc[0]['reps']
-                last_reps = group.iloc[-1]['reps']
+        # === CLASSIFICATION DES SÉRIES ===
+        # Intensité relative par rapport au max de l'exercice
+        for exercise in result_df['exercise'].unique():
+            if pd.isna(exercise):
+                continue
                 
-                if pd.notna(first_weight) and pd.notna(last_weight) and first_weight > 0:
-                    weight_fatigue = (last_weight - first_weight) / first_weight * 100
-                else:
-                    weight_fatigue = np.nan
-                
-                if pd.notna(first_reps) and pd.notna(last_reps) and first_reps > 0:
-                    reps_fatigue = (last_reps - first_reps) / first_reps * 100
-                else:
-                    reps_fatigue = np.nan
-                
-                fatigue_data.append({
-                    'session_id': session_id,
-                    'exercise': exercise,
-                    'weight_fatigue_pct': weight_fatigue,
-                    'reps_fatigue_pct': reps_fatigue
-                })
+            exercise_data = result_df[result_df['exercise'] == exercise]
+            
+            if 'weight_kg' in exercise_data.columns:
+                max_weight = exercise_data['weight_kg'].max()
+                if max_weight > 0:
+                    result_df.loc[result_df['exercise'] == exercise, 'weight_percentage_of_max'] = \
+                        (result_df.loc[result_df['exercise'] == exercise, 'weight_kg'] / max_weight) * 100
         
-        if fatigue_data:
-            fatigue_df = pd.DataFrame(fatigue_data)
-            df = df.merge(fatigue_df, on=['session_id', 'exercise'], how='left')
-        else:
-            df['weight_fatigue_pct'] = np.nan
-            df['reps_fatigue_pct'] = np.nan
+        # === INDICATEURS DE PERFORMANCE ===
+        # Évolution du volume par session
+        if 'session_id' in result_df.columns and 'volume' in result_df.columns:
+            session_volumes = result_df.groupby('session_id')['volume'].sum().reset_index()
+            session_volumes['session_volume_ma3'] = session_volumes['volume'].rolling(
+                window=3, min_periods=1
+            ).mean()
+            
+            result_df = result_df.merge(
+                session_volumes[['session_id', 'session_volume_ma3']], 
+                on='session_id', how='left'
+            )
         
-        return df
+        return result_df
     
     def generate_session_summary(self, df: pd.DataFrame,
-                               session_id: int,
-                               sessions_df: Optional[pd.DataFrame] = None) -> Dict:
+                                session_id: Optional[int] = None,
+                                sessions_df: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
         """
-        Génère un résumé complet pour une séance.
+        Génère un résumé des métriques pour une session.
         
         Args:
-            df: DataFrame avec toutes les features
-            session_id: ID de la séance à analyser
-            sessions_df: DataFrame des séances
+            df: DataFrame avec features calculées
+            session_id: ID de session spécifique (optionnel)
+            sessions_df: DataFrame des sessions avec données supplémentaires
             
         Returns:
-            Dictionnaire avec résumé de la séance
+            Dictionnaire avec métriques de session
         """
-        session_data = df[df['session_id'] == session_id].copy()
+        if session_id:
+            session_data = df[df['session_id'] == session_id]
+        else:
+            session_data = df
         
-        if len(session_data) == 0:
-            return {'error': f'Aucune donnée trouvée pour la séance {session_id}'}
+        if session_data.empty:
+            return {}
         
-        # S'assurer que les features sont calculées
-        session_data = self.calculate_all_features(session_data, sessions_df)
-        
-        # Volume de la séance
-        volume_summary = self.volume_calc.get_volume_summary(session_data, sessions_df)
-        
-        # 1RM de la séance
-        one_rm_summary = self.one_rm_calc.get_1rm_summary(session_data, sessions_df)
-        
-        # Informations de base
-        main_sets = session_data[
-            (session_data['series_type'] == 'principale') & 
-            (session_data['skipped'] != True)
-        ]
-        
-        # Date de la séance
-        session_date = None
-        if sessions_df is not None:
-            session_info = sessions_df[sessions_df['id'] == session_id]
-            if len(session_info) > 0:
-                session_date = session_info.iloc[0]['date']
+        # Calcul des volumes si pas déjà fait
+        if 'volume' not in session_data.columns:
+            session_data = self.volume_calculator.calculate_set_volume(session_data)
         
         summary = {
             'session_id': session_id,
-            'date': session_date,
-            'exercises': list(main_sets['exercise'].unique()),
-            'total_sets': len(main_sets),
-            'total_volume': main_sets['volume'].sum(),
-            'avg_intensity': main_sets['weight_kg'].mean(),
-            'max_weight': main_sets['weight_kg'].max(),
-            'total_reps': main_sets['reps'].sum(),
-            'exercise_breakdown': {},
-            'volume_metrics': volume_summary,
-            'one_rm_metrics': one_rm_summary
+            'total_sets': len(session_data),
+            'unique_exercises': session_data['exercise'].nunique(),
+            'total_volume': session_data.get('volume', pd.Series()).sum(),
+            'avg_weight': session_data.get('weight_kg', pd.Series()).mean(),
+            'total_reps': session_data.get('reps', pd.Series()).sum(),
+            'estimated_duration_minutes': session_data.get('estimated_duration_minutes', pd.Series()).sum(),
         }
         
-        # Détail par exercice
-        for exercise in main_sets['exercise'].unique():
-            exercise_data = main_sets[main_sets['exercise'] == exercise]
-            
-            exercise_summary = {
-                'sets_count': len(exercise_data),
-                'total_volume': exercise_data['volume'].sum(),
-                'max_weight': exercise_data['weight_kg'].max(),
-                'avg_weight': exercise_data['weight_kg'].mean(),
-                'total_reps': exercise_data['reps'].sum(),
-                'avg_reps': exercise_data['reps'].mean(),
-                'max_1rm_epley': exercise_data['one_rm_epley'].max() if 'one_rm_epley' in exercise_data.columns else None,
-                'avg_intensity_relative': exercise_data['intensity_relative'].mean() if 'intensity_relative' in exercise_data.columns else None,
-                'fatigue_weight': exercise_data['weight_fatigue_pct'].iloc[0] if 'weight_fatigue_pct' in exercise_data.columns and not exercise_data['weight_fatigue_pct'].isna().all() else None,
-                'fatigue_reps': exercise_data['reps_fatigue_pct'].iloc[0] if 'reps_fatigue_pct' in exercise_data.columns and not exercise_data['reps_fatigue_pct'].isna().all() else None
-            }
-            
-            summary['exercise_breakdown'][exercise] = exercise_summary
+        # Ajout des métriques avancées si disponibles
+        if '1rm_average' in session_data.columns:
+            summary['max_1rm_session'] = session_data['1rm_average'].max()
+            summary['avg_1rm_session'] = session_data['1rm_average'].mean()
+        
+        if 'volume_density' in session_data.columns:
+            summary['avg_volume_density'] = session_data['volume_density'].mean()
+        
+        # Exercices avec leur contribution au volume
+        volume_by_exercise = session_data.groupby('exercise')['volume'].sum().to_dict() \
+            if 'volume' in session_data.columns else {}
+        summary['volume_by_exercise'] = volume_by_exercise
+        summary['exercise_breakdown'] = volume_by_exercise  # Alias pour compatibilité
+        summary['exercises'] = list(session_data['exercise'].unique())
         
         return summary
     
     def generate_complete_analysis(self, df: pd.DataFrame,
-                                 sessions_df: Optional[pd.DataFrame] = None) -> Dict:
+                                 sessions_df: Optional[pd.DataFrame] = None) -> Dict[str, Any]:
         """
-        Génère une analyse complète de tous les données.
+        Génère une analyse complète des données d'entraînement.
         
         Args:
             df: DataFrame avec données d'entraînement
-            sessions_df: DataFrame des séances
+            sessions_df: DataFrame des sessions
             
         Returns:
             Dictionnaire avec analyse complète
         """
-        # Calculer toutes les features
-        df_with_features = self.calculate_all_features(df, sessions_df)
+        # Calcul de toutes les features
+        features_df = self.calculate_all_features(df, sessions_df)
         
-        # Résumés par module
-        volume_summary = self.volume_calc.get_volume_summary(df_with_features, sessions_df)
-        one_rm_summary = self.one_rm_calc.get_1rm_summary(df_with_features, sessions_df)
-        progression_report = self.progression_analyzer.generate_progression_report(
-            df_with_features, sessions_df
-        )
-        
-        # Statistiques globales
-        main_sets = df_with_features[
-            (df_with_features['series_type'] == 'principale') & 
-            (df_with_features['skipped'] != True)
-        ]
-        
-        global_stats = {
-            'total_sessions': df_with_features['session_id'].nunique(),
-            'total_exercises': df_with_features['exercise'].nunique(),
-            'total_sets': len(main_sets),
-            'total_volume': main_sets['volume'].sum(),
-            'avg_session_volume': volume_summary['avg_volume_per_session'],
-            'date_range': {
-                'start': sessions_df['date'].min() if sessions_df is not None else 'N/A',
-                'end': sessions_df['date'].max() if sessions_df is not None else 'N/A',
-                'duration_days': (pd.to_datetime(sessions_df['date'].max()) - 
-                                pd.to_datetime(sessions_df['date'].min())).days if sessions_df is not None else 0
-            }
-        }
-        
-        # Compilation finale
-        complete_analysis = {
+        analysis = {
             'analysis_metadata': {
-                'generated_at': datetime.now().isoformat(),
-                'data_version': '1.0',
-                'feature_calculator_version': '1.0'
+                'total_sessions': features_df['session_id'].nunique() if 'session_id' in features_df.columns else 0,
+                'total_sets': len(features_df),
+                'unique_exercises': features_df['exercise'].nunique(),
+                'date_range': {
+                    'start': features_df['date'].min() if 'date' in features_df.columns else None,
+                    'end': features_df['date'].max() if 'date' in features_df.columns else None
+                }
             },
-            'global_statistics': global_stats,
-            'volume_analysis': volume_summary,
-            'one_rm_analysis': one_rm_summary,
-            'progression_analysis': progression_report,
-            'raw_data_with_features': df_with_features
+            'global_statistics': {
+                'total_sessions': features_df['session_id'].nunique() if 'session_id' in features_df.columns else 0,
+                'total_sets': len(features_df),
+                'total_exercises': features_df['exercise'].nunique(),
+                'date_range': {
+                    'start': features_df['date'].min() if 'date' in features_df.columns else None,
+                    'end': features_df['date'].max() if 'date' in features_df.columns else None
+                }
+            },
+            'volume_analysis': self.volume_calculator.get_volume_summary(df, sessions_df),
+            'strength_analysis': {},
+            'progression_analysis': {},
+            'raw_data_with_features': features_df  # Ajout des données avec features
         }
         
-        return complete_analysis
+        # Analyse de force (1RM)
+        if any(col.startswith('one_rm_') for col in features_df.columns):
+            analysis['one_rm_analysis'] = self.one_rm_calculator.get_1rm_summary(features_df)
+        else:
+            analysis['one_rm_analysis'] = {}
+        
+        # Analyse de progression
+        if 'progression_trend' in features_df.columns:
+            analysis['progression_analysis'] = self.progression_analyzer.generate_progression_report(
+                features_df, sessions_df
+            )
+        
+        return analysis
     
     def export_features_to_csv(self, df: pd.DataFrame,
                              sessions_df: Optional[pd.DataFrame] = None,
                              output_path: str = 'features_export.csv') -> str:
         """
-        Exporte les données avec features calculées vers CSV.
+        Exporte les features calculées vers un fichier CSV.
         
         Args:
             df: DataFrame avec données d'entraînement
-            sessions_df: DataFrame des séances
-            output_path: Chemin du fichier de sortie
+            sessions_df: DataFrame des sessions
+            output_path: Chemin de sortie du fichier CSV
             
         Returns:
-            Chemin du fichier créé
+            Chemin du fichier exporté
         """
-        # Calculer toutes les features
+        # Calcul des features
         df_with_features = self.calculate_all_features(df, sessions_df)
         
-        # Joindre avec informations des séances si disponible
-        if sessions_df is not None:
+        # Ajout des données de session si disponibles
+        if sessions_df is not None and not sessions_df.empty:
             df_export = df_with_features.merge(
                 sessions_df[['id', 'date', 'training_name']], 
-                left_on='session_id', 
-                right_on='id', 
+                left_on='session_id', right_on='id', 
                 how='left'
-            )
-            df_export = df_export.drop('id', axis=1)
+            ).drop('id', axis=1)
         else:
             df_export = df_with_features
         

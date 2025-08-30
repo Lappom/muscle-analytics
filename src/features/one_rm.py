@@ -12,9 +12,7 @@ Ce module implémente plusieurs formules pour estimer le 1RM :
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Union
-import warnings
 import logging
-from functools import lru_cache
 
 
 class OneRMCalculator:

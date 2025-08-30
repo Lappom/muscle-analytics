@@ -93,7 +93,12 @@ Explorer les données, créer des features clés et développer des dashboards p
     -   Rolling sums et windows pour progression
     -   Indicateurs de progression et détection plateaux (`src/features/progression.py`)
     -   Module principal orchestrant tous les calculs (`src/features/calculations.py`)
--   [ ] Endpoints API de base pour exposer agrégations
+-   [x] Endpoints API de base pour exposer agrégations
+    -   13 endpoints FastAPI opérationnels (`src/api/main.py`)
+    -   Endpoints données : `/sessions`, `/sets`, `/exercises`
+    -   Endpoints analytics : `/analytics/volume`, `/analytics/one-rm`, `/analytics/progression`
+    -   Endpoints utils : `/health`, `/status`, `/analytics/dashboard`
+    -   Tests unitaires complets (`tests/test_api_endpoints.py`)
 -   [ ] MVP frontend (Streamlit ou React minimal)
     -   Volume hebdomadaire
     -   Progression par exercice
@@ -103,7 +108,7 @@ Explorer les données, créer des features clés et développer des dashboards p
 ### Critères d'acceptation
 
 -   [ ] Dashboards affichant KPIs et courbes par exercice
--   [ ] Endpoints API retournant JSON testables
+-   [x] Endpoints API retournant JSON testables
 -   [ ] Interface utilisateur intuitive et responsive
 
 ### Livrable
@@ -272,7 +277,10 @@ Version déployée et documentée en production.
   - Module `ProgressionAnalyzer` : Tendances, progression, détection plateaux
   - Module `FeatureCalculator` : Orchestration complète avec 16 tests unitaires
   - Script de démonstration `examples/demo_advanced_features.py` opérationnel
-- **API endpoints** : FastAPI pour exposer les données
+- **API endpoints** : ✅ FastAPI pour exposer les données
+  - 13 endpoints opérationnels avec tests complets
+  - Documentation Swagger/OpenAPI disponible
+  - Endpoints de données, analytics et monitoring
 - **Dashboard MVP** : Interface utilisateur basique (Streamlit recommandé)
 
 ### 🔮 Phases suivantes
@@ -283,4 +291,4 @@ Version déployée et documentée en production.
 ---
 
 _Dernière mise à jour : 30 août 2025_  
-_Version : 2.2 - Phase 1 terminée, Phase 2 tâche 2 (Features avancées) terminée_
+_Version : 2.3 - Phase 1 terminée, Phase 2 tâches 2 & 3 (Features avancées + API endpoints) terminées_

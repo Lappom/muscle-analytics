@@ -17,7 +17,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from etl.pipeline import ETLPipeline
-from etl.database import DatabaseManager
+from database import DatabaseManager
 from etl.import_scripts import ETLImporter
 
 # Configuration du logging

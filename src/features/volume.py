@@ -91,13 +91,11 @@ class VolumeCalculator:
             
         else:
             # Volume total par séance (tous exercices confondus)
-            session_volumes = (working_sets
-                             .groupby('session_id')
-                             .agg({
-                                 'volume': ['sum', 'count', 'mean'],
-                                 'exercise': 'nunique'  # Nombre d'exercices différents
-                             })
-                             .round(2))
+            session_stats = working_sets.groupby('session_id').agg({
+                'volume': ['sum', 'count', 'mean'],
+                'exercise': 'nunique'  # Nombre d'exercices différents
+            })
+            session_volumes = session_stats.round(2)
             
             session_volumes.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] 
                                      for col in session_volumes.columns]
@@ -147,13 +145,11 @@ class VolumeCalculator:
         working_sets = df_with_dates[mask].copy()
         
         # Volume par semaine et par exercice
-        weekly_volumes = (working_sets
-                        .groupby(['week', 'exercise'])
-                        .agg({
-                            'volume': ['sum', 'count'],
-                            'session_id': 'nunique'  # Nombre de séances
-                        })
-                        .round(2))
+        weekly_stats = working_sets.groupby(['week', 'exercise']).agg({
+            'volume': ['sum', 'count'],
+            'session_id': 'nunique'  # Nombre de séances
+        })
+        weekly_volumes = weekly_stats.round(2)
         
         weekly_volumes.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] 
                                 for col in weekly_volumes.columns]
@@ -217,8 +213,8 @@ class VolumeCalculator:
             
             rolling_data.append(exercise_data)
         
-        result = pd.concat(rolling_data, ignore_index=True)
-        return result
+        rolling_volumes = pd.concat(rolling_data, ignore_index=True)
+        return rolling_volumes
     
     def get_volume_summary(self, df: pd.DataFrame,
                           sessions_df: Optional[pd.DataFrame] = None) -> Dict:

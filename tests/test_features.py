@@ -309,7 +309,7 @@ class TestFeatureCalculator:
         """Test calcul de durée estimée d'un set."""
         # Test cas normal
         duration = self.feature_calc.calculate_estimated_set_duration(10)
-        expected = 10 * self.feature_calc.SECONDS_PER_REP + self.feature_calc.SET_REST_TIME
+        expected = 10 * self.feature_calc.seconds_per_rep + self.feature_calc.set_rest_time
         assert duration == expected
         
         # Test avec 0 reps
@@ -323,6 +323,27 @@ class TestFeatureCalculator:
         # Test avec valeur négative
         duration_neg = self.feature_calc.calculate_estimated_set_duration(-5)
         assert pd.isna(duration_neg)
+    
+    def test_custom_timing_parameters(self):
+        """Test de FeatureCalculator avec paramètres de timing personnalisés."""
+        # Test avec paramètres par défaut
+        calc_default = FeatureCalculator()
+        assert calc_default.seconds_per_rep == 4
+        assert calc_default.set_rest_time == 60
+        
+        # Test avec paramètres personnalisés
+        calc_custom = FeatureCalculator(seconds_per_rep=3.0, set_rest_time=45.0)
+        assert calc_custom.seconds_per_rep == 3.0
+        assert calc_custom.set_rest_time == 45.0
+        
+        # Test que les calculs utilisent les nouveaux paramètres
+        duration_default = calc_default.calculate_estimated_set_duration(10)
+        duration_custom = calc_custom.calculate_estimated_set_duration(10)
+        
+        # Durée par défaut: 10 * 4 + 60 = 100s
+        assert duration_default == 100
+        # Durée personnalisée: 10 * 3 + 45 = 75s
+        assert duration_custom == 75.0
 
 
 # Tests d'intégration
