@@ -87,11 +87,12 @@ Explorer les données, créer des features clés et développer des dashboards p
     -   Distributions et outliers
     -   Mapping muscles/exercices
     -   Analyse temporelle des données
--   [ ] Calculs de features avancées
-    -   Volume par set et par séance
-    -   1RM estimé (formules Epley/Brzycki)
-    -   Rolling sums et windows
-    -   Indicateurs de progression
+-   [x] Calculs de features avancées
+    -   Volume par set et par séance (`src/features/volume.py`)
+    -   1RM estimé (formules Epley/Brzycki/Lander/O'Conner) (`src/features/one_rm.py`)
+    -   Rolling sums et windows pour progression
+    -   Indicateurs de progression et détection plateaux (`src/features/progression.py`)
+    -   Module principal orchestrant tous les calculs (`src/features/calculations.py`)
 -   [ ] Endpoints API de base pour exposer agrégations
 -   [ ] MVP frontend (Streamlit ou React minimal)
     -   Volume hebdomadaire
@@ -264,8 +265,13 @@ Version déployée et documentée en production.
 - **Qualité code** : Linting, formatage et bonnes pratiques
 
 ### 🎯 Objectifs Phase 2 (En cours)
-- **Notebooks EDA** : Analyse exploratoire des données dans `notebooks/`
-- **Features ML** : Calculs 1RM, volume, indicateurs de progression
+- **Notebooks EDA** : ✅ Analyse exploratoire des données dans `notebooks/`
+- **Features ML** : ✅ Calculs 1RM, volume, indicateurs de progression
+  - Module `VolumeCalculator` : Calculs volume par set/séance/semaine avec moyennes mobiles
+  - Module `OneRMCalculator` : 4 formules (Epley, Brzycki, Lander, O'Conner) + moyenne pondérée
+  - Module `ProgressionAnalyzer` : Tendances, progression, détection plateaux
+  - Module `FeatureCalculator` : Orchestration complète avec 16 tests unitaires
+  - Script de démonstration `examples/demo_advanced_features.py` opérationnel
 - **API endpoints** : FastAPI pour exposer les données
 - **Dashboard MVP** : Interface utilisateur basique (Streamlit recommandé)
 
@@ -277,4 +283,4 @@ Version déployée et documentée en production.
 ---
 
 _Dernière mise à jour : 30 août 2025_  
-_Version : 2.1 - Phase 1 terminée, Phase 2 en cours_
+_Version : 2.2 - Phase 1 terminée, Phase 2 tâche 2 (Features avancées) terminée_
