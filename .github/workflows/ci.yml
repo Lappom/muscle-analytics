@@ -29,11 +29,17 @@ jobs:
           --health-retries=5
 
     env:
+      APP_ENV: test
       DB_HOST: localhost
       DB_PORT: 5432
       DB_NAME: muscle_analytics_test
       DB_USER: postgres
       DB_PASSWORD: password
+      TEST_DB_HOST: localhost
+      TEST_DB_PORT: 5432
+      TEST_DB_NAME: muscle_analytics_test
+      TEST_DB_USER: test_user
+      TEST_DB_PASSWORD: test_password
 
     steps:
     - uses: actions/checkout@v3
@@ -55,8 +61,17 @@ jobs:
         # Install psql client
         sudo apt-get update
         sudo apt-get install -y postgresql-client
+        
+        # Create test user
+        PGPASSWORD=password psql -h localhost -U postgres -d muscle_analytics_test -c "CREATE ROLE test_user WITH LOGIN PASSWORD 'test_password';"
+        PGPASSWORD=password psql -h localhost -U postgres -d muscle_analytics_test -c "GRANT ALL PRIVILEGES ON DATABASE muscle_analytics_test TO test_user;"
+        
         # Create database schema
         PGPASSWORD=password psql -h localhost -U postgres -d muscle_analytics_test -f docker/init.sql || echo "Schema setup completed"
+        
+        # Grant permissions on tables to test_user
+        PGPASSWORD=password psql -h localhost -U postgres -d muscle_analytics_test -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO test_user;"
+        PGPASSWORD=password psql -h localhost -U postgres -d muscle_analytics_test -c "GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO test_user;"
 
     - name: Lint with flake8
       run: |

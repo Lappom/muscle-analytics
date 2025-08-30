@@ -246,9 +246,15 @@ class AnalyticsService:
         
         df = self._sets_to_dataframe(sets)
         
+        # Récupération des sessions et conversion en DataFrame
+        sessions = self.db_service.get_sessions(
+            start_date=start_date, end_date=end_date
+        )
+        sessions_df = self._sessions_to_dataframe(sessions)
+        
         # Calcul des features
         features_df = self.feature_calculator.calculate_all_features(
-            df, include_progression=False
+            df, sessions_df, include_progression=False
         )
         
         # Groupement par exercice

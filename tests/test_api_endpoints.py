@@ -13,10 +13,10 @@ from fastapi.testclient import TestClient
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 # Configuration d'environnement de test
-os.environ['APP_ENV'] = 'development'
+os.environ['APP_ENV'] = 'test'
 
 from src.api.main import app
-from src.api.models import Session, Set, Exercise
+from src.api.models import Session, Set, Exercise, VolumeStats, OneRMStats, ProgressionStats, DashboardData
 from src.api.services import DatabaseService, AnalyticsService
 
 
@@ -219,7 +219,6 @@ class TestAnalyticsEndpoints:
         mock_service = Mock(spec=AnalyticsService)
         
         # Mock des analytics de volume
-        from src.api.models import VolumeStats, OneRMStats, ProgressionStats, DashboardData
         
         mock_volume_stats = [
             VolumeStats(
