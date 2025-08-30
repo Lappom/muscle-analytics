@@ -91,7 +91,23 @@ venv/
 ENV/
 env/
 .env
+.env.local
+.env.production
+.env.development
+.env.test
 .venv
+
+# Test configuration files (contain credentials)
+tests/.env.test
+tests/test_config.ini
+tests/*.env
+
+# Database configuration files
+src/config/.env
+src/config/.env.*
+
+# Docker override files (may contain secrets)
+docker-compose.override.yml
 
 # Spyder project settings
 .spyderproject

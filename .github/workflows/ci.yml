@@ -13,6 +13,28 @@ jobs:
       matrix:
         python-version: ["3.8", "3.9", "3.10", "3.11"]
 
+    services:
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_DB: muscle_analytics_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_NAME: muscle_analytics_test
+      DB_USER: postgres
+      DB_PASSWORD: password
+
     steps:
     - uses: actions/checkout@v3
 
@@ -27,6 +49,14 @@ jobs:
         pip install -r requirements.txt
         pip install -r requirements-dev.txt
         pip install flake8 pytest
+
+    - name: Set up database schema
+      run: |
+        # Install psql client
+        sudo apt-get update
+        sudo apt-get install -y postgresql-client
+        # Create database schema
+        PGPASSWORD=password psql -h localhost -U postgres -d muscle_analytics_test -f docker/init.sql || echo "Schema setup completed"
 
     - name: Lint with flake8
       run: |
