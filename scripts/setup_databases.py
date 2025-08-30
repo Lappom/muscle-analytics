@@ -16,7 +16,8 @@ import os
 from pathlib import Path
 
 # Ajouter le dossier src au PYTHONPATH
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root / "src"))
 
 try:
     from config.database import (

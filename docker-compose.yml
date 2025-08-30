@@ -28,6 +28,7 @@ services:
       postgres:
         condition: service_healthy
     environment:
+      APP_ENV: docker
       DATABASE_URL: postgresql://dev:devpass@postgres:5432/muscle_analytics
       DB_HOST: postgres
       DB_PORT: 5432
