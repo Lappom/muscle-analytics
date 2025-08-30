@@ -83,7 +83,7 @@ Explorer les données, créer des features clés et développer des dashboards p
 
 ### Tâches détaillées
 
--   [ ] Notebooks EDA (Jupyter/Colab)
+-   [x] Notebooks EDA (Jupyter/Colab)
     -   Distributions et outliers
     -   Mapping muscles/exercices
     -   Analyse temporelle des données
