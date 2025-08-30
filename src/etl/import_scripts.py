@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, date, timedelta
 
 from .pipeline import ETLPipeline
-from .database import DatabaseManager, DatabaseError
+from database import DatabaseManager, DatabaseError
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ class ETLImporter:
         
         Args:
             directory_path: Chemin vers le répertoire
-            file_pattern: Pattern de fichiers à importer
+            file_pattern: Pattern pour filtrer les fichiers
             force_import: Force l'import même si des données existent
             
         Returns:
@@ -128,16 +128,29 @@ class ETLImporter:
             if not directory_path.exists():
                 raise ETLImportError(f"Répertoire non trouvé: {directory_path}")
             
-            # Recherche des fichiers
-            csv_files = list(directory_path.glob("*.csv"))
-            xml_files = list(directory_path.glob("*.xml"))
-            all_files = csv_files + xml_files
+            # Recherche des fichiers selon le pattern spécifié
+            all_files = []
+            
+            # Support pour les patterns avec accolades comme "*.{csv,xml}"
+            if '{' in file_pattern and '}' in file_pattern:
+                # Extraire les extensions des accolades
+                start = file_pattern.find('{')
+                end = file_pattern.find('}')
+                prefix = file_pattern[:start]
+                extensions = file_pattern[start+1:end].split(',')
+                
+                for ext in extensions:
+                    pattern = prefix + ext.strip()
+                    all_files.extend(directory_path.glob(pattern))
+            else:
+                # Pattern simple
+                all_files = list(directory_path.glob(file_pattern))
             
             if not all_files:
-                logger.warning(f"Aucun fichier CSV/XML trouvé dans {directory_path}")
+                logger.warning(f"Aucun fichier trouvé avec le pattern '{file_pattern}' dans {directory_path}")
                 return {
                     'success': False,
-                    'message': 'Aucun fichier trouvé',
+                    'message': f'Aucun fichier trouvé avec le pattern: {file_pattern}',
                     'directory': str(directory_path),
                     'files_processed': [],
                     'global_stats': {}

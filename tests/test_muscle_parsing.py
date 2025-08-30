@@ -4,8 +4,13 @@ Test rapide pour valider la nouvelle méthode _parse_muscle_list
 """
 
 import sys
+import os
 import pandas as pd
-from src.etl.database import DatabaseManager
+
+# Ajouter le répertoire src au PYTHONPATH
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from database import DatabaseManager
 
 def test_parse_muscle_list():
     """Test de la méthode _parse_muscle_list"""

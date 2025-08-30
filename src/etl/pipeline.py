@@ -124,10 +124,11 @@ class ETLPipeline:
             
             # Ajout de l'heure si disponible
             if 'time' in df.columns:
-                time_series = pd.to_datetime(df['time'], format='%H:%M', errors='coerce').dt.time
-                for i, (date, time_val) in enumerate(zip(df['_sort_datetime'], time_series)):
-                    if pd.notna(date) and time_val is not None:
-                        df.loc[i, '_sort_datetime'] = pd.Timestamp.combine(date.date(), time_val)
+                # Utilisation directe de pd.to_datetime avec la colonne 'date' et la série 'time' remplie
+                df['_sort_datetime'] = pd.to_datetime(
+                    df['date'] + ' ' + df['time'].fillna('00:00'),
+                    errors='coerce'
+                )
             
             # Tri et suppression de la colonne temporaire
             df = df.sort_values('_sort_datetime', na_position='last')

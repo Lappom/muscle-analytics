@@ -13,7 +13,6 @@ import numpy as np
 from typing import Dict, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 from scipy import stats
-import warnings
 
 
 class ProgressionAnalyzer:
