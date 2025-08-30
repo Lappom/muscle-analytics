@@ -242,10 +242,29 @@ class AnalyticsService:
         self.db_service = db_service
         self.feature_calculator = FeatureCalculator()
     
-    def _safe_extract_float(self, df: pd.DataFrame, column: str, use_max: bool = False) -> Optional[float]:
-        """Extrait une valeur float d'une colonne DataFrame de manière sécurisée."""
+    def _safe_extract_value(
+        self,
+        df: pd.DataFrame,
+        column: str,
+        type_func: Any,
+        use_max: bool = False,
+        default: Any = None
+    ) -> Any:
+        """
+        Extrait une valeur d'une colonne DataFrame de manière sécurisée et la convertit selon type_func.
+        
+        Args:
+            df: DataFrame source
+            column: Nom de la colonne à extraire
+            type_func: Fonction de conversion (float, int, bool, str, etc.)
+            use_max: Si True, utilise la valeur maximale de la colonne (utile pour float)
+            default: Valeur de retour par défaut si extraction impossible
+            
+        Returns:
+            Valeur convertie ou valeur par défaut
+        """
         if column not in df.columns or df.empty:
-            return None
+            return default
         
         try:
             if use_max:
@@ -254,60 +273,28 @@ class AnalyticsService:
                 raw_value = df[column].iloc[-1]
             
             if pd.isna(raw_value):
-                return None
+                return default
                 
-            return float(raw_value)
+            return type_func(raw_value)
                 
         except (ValueError, TypeError, IndexError):
-            return None
+            return default
+
+    def _safe_extract_float(self, df: pd.DataFrame, column: str, use_max: bool = False) -> Optional[float]:
+        """Extrait une valeur float d'une colonne DataFrame de manière sécurisée."""
+        return self._safe_extract_value(df, column, float, use_max=use_max, default=None)
 
     def _safe_extract_int(self, df: pd.DataFrame, column: str) -> Optional[int]:
         """Extrait une valeur int d'une colonne DataFrame de manière sécurisée."""
-        if column not in df.columns or df.empty:
-            return None
-        
-        try:
-            raw_value = df[column].iloc[-1]
-            
-            if pd.isna(raw_value):
-                return None
-                
-            return int(raw_value)
-                
-        except (ValueError, TypeError, IndexError):
-            return None
+        return self._safe_extract_value(df, column, int, use_max=False, default=None)
 
     def _safe_extract_bool(self, df: pd.DataFrame, column: str, default: bool = False) -> bool:
         """Extrait une valeur bool d'une colonne DataFrame de manière sécurisée."""
-        if column not in df.columns or df.empty:
-            return default
-        
-        try:
-            raw_value = df[column].iloc[-1]
-            
-            if pd.isna(raw_value):
-                return default
-                
-            return bool(raw_value)
-                
-        except (ValueError, TypeError, IndexError):
-            return default
+        return self._safe_extract_value(df, column, bool, use_max=False, default=default)
 
     def _safe_extract_str(self, df: pd.DataFrame, column: str) -> Optional[str]:
         """Extrait une valeur string d'une colonne DataFrame de manière sécurisée."""
-        if column not in df.columns or df.empty:
-            return None
-        
-        try:
-            raw_value = df[column].iloc[-1]
-            
-            if pd.isna(raw_value):
-                return None
-                
-            return str(raw_value)
-                
-        except (ValueError, TypeError, IndexError):
-            return None
+        return self._safe_extract_value(df, column, str, use_max=False, default=None)
     
     def _convert_to_dataframe(self, data_list: List, data_type: str) -> pd.DataFrame:
         """

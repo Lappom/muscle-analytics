@@ -144,6 +144,13 @@ examples/output/
 .DS_Store
 Thumbs.db
 
+# Temporary debug and test files (should be in tests/ directory)
+debug_*.py
+test_*.py
+!tests/test_*.py
+temp_*.py
+scratch_*.py
+
 # IDE specific files
 .vscode/settings.json
 .idea/

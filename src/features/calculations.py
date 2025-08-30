@@ -50,21 +50,58 @@ class FeatureCalculator:
         self.seconds_per_rep = seconds_per_rep
         self.set_rest_time = set_rest_time
     
-    def calculate_estimated_set_duration(self, reps: Union[int, float]) -> float:
+    def _validate_numeric_columns(self, df: pd.DataFrame, columns: List[str]) -> pd.DataFrame:
+        """
+        Valide et nettoie les colonnes numériques pour optimiser les calculs suivants.
+        
+        Args:
+            df: DataFrame à valider
+            columns: Liste des colonnes à valider
+            
+        Returns:
+            DataFrame avec colonnes validées
+        """
+        result_df = df.copy()
+        
+        for col in columns:
+            if col in result_df.columns:
+                # Conversion vers numeric, forcer les erreurs à NaN
+                result_df[col] = pd.to_numeric(result_df[col], errors='coerce')
+                # Remplacer les valeurs négatives/nulles par NaN pour les calculs
+                if col in ['reps', 'weight_kg']:  # Colonnes qui doivent être positives
+                    result_df.loc[result_df[col] <= 0, col] = np.nan
+        
+        return result_df
+    
+    def calculate_estimated_set_duration(self, reps: Union[int, float, pd.Series]) -> Union[float, pd.Series]:
         """
         Calcule la durée estimée d'un set.
         
         Args:
-            reps: Nombre de répétitions
+            reps: Nombre de répétitions (peut être un scalaire ou une Series pandas)
             
         Returns:
-            Durée estimée en secondes
+            Durée estimée en secondes (scalaire ou Series selon l'entrée)
         """
-        # Validation que reps est un nombre positif valide
-        if pd.isna(reps) or not isinstance(reps, (int, float)) or reps <= 0:
+        # Gestion vectorisée pour les Series pandas (plus efficace pour les gros datasets)
+        if isinstance(reps, pd.Series):
+            # Validation vectorisée optimisée : évite isinstance sur chaque élément
+            # On suppose que les données sont déjà validées en amont
+            valid_mask = reps.notna() & (reps > 0)
+            result = pd.Series(np.nan, index=reps.index, dtype='float64')
+            
+            # Application vectorisée de la formule sur les valeurs valides
+            valid_reps = reps[valid_mask]
+            result[valid_mask] = valid_reps * self.seconds_per_rep + self.set_rest_time
+            return result
+        
+        # Gestion scalaire (conservée pour compatibilité)
+        # Cast en float pour éviter les problèmes de type avec pd.isna
+        reps_val = float(reps) if not pd.isna(reps) else np.nan
+        if pd.isna(reps_val) or reps_val <= 0:
             return np.nan
         
-        return reps * self.seconds_per_rep + self.set_rest_time
+        return reps_val * self.seconds_per_rep + self.set_rest_time
     
     def calculate_all_features(self, 
                              df: pd.DataFrame,
@@ -89,6 +126,10 @@ class FeatureCalculator:
         # Validation des données d'entrée
         if result_df.empty:
             return result_df
+        
+        # Validation et nettoyage des colonnes numériques pour optimiser les performances
+        numeric_columns = ['reps', 'weight_kg', 'session_id']
+        result_df = self._validate_numeric_columns(result_df, numeric_columns)
         
         # === CALCULS VOLUME ===
         try:
@@ -156,9 +197,8 @@ class FeatureCalculator:
         
         # === DURÉE ESTIMÉE ===
         if 'reps' in result_df.columns:
-            result_df['estimated_duration_seconds'] = result_df['reps'].apply(
-                self.calculate_estimated_set_duration
-            )
+            # Utilisation vectorisée directe pour de meilleures performances
+            result_df['estimated_duration_seconds'] = self.calculate_estimated_set_duration(result_df['reps'])
             result_df['estimated_duration_minutes'] = result_df['estimated_duration_seconds'] / 60
         
         # === MÉTRIQUES DE QUALITÉ ===
