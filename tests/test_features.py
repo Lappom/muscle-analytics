@@ -104,9 +104,14 @@ class TestOneRMCalculator:
         expected = 100 * (1 + 5/30)  # ≈ 116.67
         assert abs(result - expected) < 0.01
         
-        # Test avec 1 rep (devrait retourner le poids)
+        # Test avec 1 rep (devrait appliquer la formule)
         result = self.one_rm_calc.calculate_1rm(100, 1, 'epley')
-        assert result == 103.33  # 100 * (1 + 1/30)
+        expected = 100 * (1 + 1/30)  # ≈ 103.33
+        assert abs(result - expected) < 0.01
+        
+        # Test avec 0 rep (devrait retourner le poids directement)
+        result = self.one_rm_calc.calculate_1rm(100, 0, 'epley')
+        assert result == 100
     
     def test_brzycki_formula(self):
         """Test formule de Brzycki."""

@@ -101,12 +101,14 @@ class ProgressionAnalyzer:
             if len(session_volumes) >= self.min_sessions_for_trend:
                 x = np.arange(len(session_volumes))
                 try:
-                    # Ignorer les warnings de type pour scipy.stats.linregress
-                    slope, intercept, r_value, p_value, std_err = stats.linregress(x, session_volumes['volume'])  # type: ignore
+                    # Utiliser stats.linregress avec accès sûr aux attributs
+                    linregress_result = stats.linregress(x, session_volumes['volume'])
                     
-                    session_volumes['trend_slope'] = slope
-                    session_volumes['trend_r_squared'] = r_value * r_value  # type: ignore
-                    session_volumes['trend_p_value'] = p_value
+                    # Accès sûr aux attributs pour compatibilité avec différentes versions
+                    session_volumes['trend_slope'] = getattr(linregress_result, 'slope', 0.0)
+                    rvalue = getattr(linregress_result, 'rvalue', 0.0)
+                    session_volumes['trend_r_squared'] = rvalue * rvalue
+                    session_volumes['trend_p_value'] = getattr(linregress_result, 'pvalue', 1.0)
                 except (ValueError, TypeError):
                     # En cas d'erreur, valeurs par défaut
                     session_volumes['trend_slope'] = 0.0

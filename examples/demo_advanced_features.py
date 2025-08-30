@@ -312,7 +312,10 @@ def demo_complete_analysis():
     
     # 4. Export des données
     print("4. Export des données avec features:")
-    output_file = feature_calc.export_features_to_csv(df, sessions_df, 'examples/demo_features_export.csv')
+    # Construire le chemin d'export relatif au script et s'assurer que le dossier existe
+    export_dir = os.path.dirname(__file__)  # Dossier du script courant (examples)
+    export_path = os.path.join(export_dir, 'demo_features_export.csv')
+    output_file = feature_calc.export_features_to_csv(df, sessions_df, export_path)
     print(f"Données exportées vers: {output_file}")
     print()
 

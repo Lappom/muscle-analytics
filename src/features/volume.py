@@ -220,6 +220,10 @@ class VolumeCalculator:
         df_with_volume = self.calculate_set_volume(df)
         session_volumes = self.calculate_session_volume(df_with_volume)
         
+        # Initialiser les variables pour les volumes avancés
+        weekly_volumes = None
+        rolling_volumes = None
+        
         if sessions_df is not None:
             weekly_volumes = self.calculate_weekly_volume(df_with_volume, sessions_df)
             rolling_volumes = self.calculate_rolling_volume(df_with_volume, 
@@ -249,12 +253,9 @@ class VolumeCalculator:
         
         # Ajouter les données détaillées
         summary['session_volumes'] = session_volumes
-        if sessions_df is not None:
-            weekly_volumes = self.calculate_weekly_volume(df_with_volume, sessions_df)
-            rolling_volumes = self.calculate_rolling_volume(df_with_volume, 
-                                                          window_days=7, 
-                                                          sessions_df=sessions_df)
+        if weekly_volumes is not None:
             summary['weekly_volumes'] = weekly_volumes
+        if rolling_volumes is not None:
             summary['rolling_volumes'] = rolling_volumes
         
         return summary
