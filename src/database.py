@@ -192,12 +192,9 @@ class DatabaseManager:
         allow_root = allow_root_user or env_allow_root
         
         if user == 'root' and not allow_root:
-            logger.warning("⚠️  Utilisateur 'root' détecté - risque d'erreur 'role root does not exist'")
-            logger.warning("   Solutions possibles :")
-            logger.warning("   1. Utiliser un autre utilisateur (recommandé) : postgres, test_user, etc.")
-            logger.warning("   2. Créer le rôle 'root' dans PostgreSQL")
-            logger.warning("   3. Utiliser allow_root_user=True si 'root' est configuré intentionnellement")
-            logger.warning("   4. Définir ALLOW_ROOT_USER=true dans les variables d'environnement")
+            logger.warning("⚠️  Utilisateur 'root' détecté - risque d'erreur 'role root does not exist'. "
+                          "Solutions: utiliser 'postgres' (recommandé), créer le rôle 'root', "
+                          "ou définir allow_root_user=True/ALLOW_ROOT_USER=true")
             raise ValueError(
                 "L'utilisateur 'root' n'existe généralement pas dans PostgreSQL. "
                 "Utilisez allow_root_user=True ou ALLOW_ROOT_USER=true pour forcer l'utilisation de 'root' "

@@ -75,12 +75,14 @@ class VolumeCalculator:
         
         if group_by_exercise:
             # Volume par exercice et par séance
-            agg_result = working_sets.groupby(['session_id', 'exercise']).agg({
-                'volume': ['sum', 'count', 'mean'],
-                'reps': ['sum', 'mean'],
-                'weight_kg': ['max', 'mean']
-            })
-            session_volumes = agg_result.round(2)
+            session_volumes = (working_sets
+                             .groupby(['session_id', 'exercise'])
+                             .agg({
+                                 'volume': ['sum', 'count', 'mean'],
+                                 'reps': ['sum', 'mean'],
+                                 'weight_kg': ['max', 'mean']
+                             })
+                             .round(2))
             
             # Aplatir les colonnes multi-niveau
             session_volumes.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] 

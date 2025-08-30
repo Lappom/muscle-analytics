@@ -3,7 +3,6 @@ Configuration et fixtures globales pour les tests de l'API Muscle-Analytics
 """
 
 import pytest
-import sys
 import os
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -13,9 +12,6 @@ from unittest.mock import Mock
 # Configuration d'environnement de test sécurisée
 from .test_env_config import ensure_test_environment
 ensure_test_environment()
-
-# Ajouter le répertoire src au PYTHONPATH
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 from src.api.main import app
 from src.api.models import Session, Set, Exercise, VolumeStats, OneRMStats, ProgressionStats, DashboardData

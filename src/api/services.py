@@ -238,12 +238,9 @@ class DatabaseService:
 class AnalyticsService:
     """Service pour les calculs d'analytics"""
     
-    # Instance partagée du calculateur (stateless avec valeurs par défaut)
-    _feature_calculator = FeatureCalculator()
-    
     def __init__(self, db_service: DatabaseService):
         self.db_service = db_service
-        self.feature_calculator = self._feature_calculator
+        self.feature_calculator = FeatureCalculator()
     
     def _safe_extract_float(self, df: pd.DataFrame, column: str, use_max: bool = False) -> Optional[float]:
         """Extrait une valeur float d'une colonne DataFrame de manière sécurisée."""

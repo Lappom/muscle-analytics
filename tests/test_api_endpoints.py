@@ -9,19 +9,15 @@ simplifiée des overrides de dépendances sans chargement paresseux.
 """
 
 import pytest
-import sys
 import os
 from datetime import date, timedelta
 from unittest.mock import Mock, patch
 from fastapi.testclient import TestClient
 
-# Ajouter le répertoire src au PYTHONPATH
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
-
 # Configuration d'environnement de test
 os.environ['APP_ENV'] = 'test'
 
-# Import direct de l'app - plus simple et plus standard
+# Import direct de l'app
 from src.api.main import app
 
 

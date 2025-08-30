@@ -309,7 +309,7 @@ class TestFeatureCalculator:
         """Test calcul de durée estimée d'un set."""
         # Test cas normal
         duration = self.feature_calc.calculate_estimated_set_duration(10)
-        expected = 10 * self.feature_calc.SECONDS_PER_REP + self.feature_calc.SET_REST_TIME
+        expected = 10 * self.feature_calc.seconds_per_rep + self.feature_calc.set_rest_time
         assert duration == expected
         
         # Test avec 0 reps

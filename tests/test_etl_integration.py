@@ -12,23 +12,18 @@ from unittest.mock import Mock, patch
 import tempfile
 import os
 from pathlib import Path
-import sys
 import logging
 
 # Configuration du logger
 logger = logging.getLogger(__name__)
 
-# Ajout du chemin pour les imports
-sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
-sys.path.insert(0, str(Path(__file__).parent))  # Pour test_config
-
 # Configuration d'environnement de test sécurisée
 from test_env_config import ensure_test_environment, get_safe_test_config
 ensure_test_environment()
 
-from database import DatabaseManager, DatabaseError, get_database_config, DatabaseEnvironment
-from etl.import_scripts import ETLImporter
-from etl.pipeline import ETLPipeline
+from src.database import DatabaseManager, DatabaseError, get_database_config, DatabaseEnvironment
+from src.etl.import_scripts import ETLImporter
+from src.etl.pipeline import ETLPipeline
 
 
 class TestDatabaseManager(unittest.TestCase):
