@@ -6,7 +6,7 @@ utilisés par les endpoints de l'API FastAPI.
 """
 
 import pandas as pd
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Tuple, Any, Type, TypeVar
 from datetime import date, datetime, timedelta
 from fastapi import Depends, HTTPException
 import logging
@@ -19,6 +19,9 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# TypeVar pour la méthode générique safe_extract_value
+T = TypeVar('T')
 
 
 class DatabaseService:
@@ -174,8 +177,8 @@ class AnalyticsService:
         self.feature_calculator = FeatureCalculator()
     
     def _safe_extract_value(self, df: pd.DataFrame, column: str, 
-                           value_type: type = float, use_max: bool = False, 
-                           default: Any = None) -> Any:
+                           value_type: Type[T], use_max: bool = False, 
+                           default: Optional[T] = None) -> Optional[T]:
         """
         Extrait une valeur typée d'une colonne DataFrame de manière sécurisée.
         
@@ -202,11 +205,11 @@ class AnalyticsService:
                 return default
                 
             if value_type == bool:
-                return bool(raw_value)
+                return bool(raw_value)  # type: ignore
             elif value_type == str:
-                return str(raw_value)
+                return str(raw_value)  # type: ignore
             else:
-                return value_type(raw_value)
+                return value_type(raw_value)  # type: ignore
                 
         except (ValueError, TypeError, IndexError):
             return default
@@ -221,7 +224,8 @@ class AnalyticsService:
     
     def _safe_extract_bool(self, df: pd.DataFrame, column: str, default: bool = False) -> bool:
         """Extrait une valeur bool d'une colonne."""
-        return self._safe_extract_value(df, column, bool, default=default)
+        result = self._safe_extract_value(df, column, bool, default=default)
+        return result if result is not None else default
     
     def _safe_extract_str(self, df: pd.DataFrame, column: str) -> Optional[str]:
         """Extrait une valeur string d'une colonne."""

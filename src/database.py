@@ -176,6 +176,7 @@ class DatabaseManager:
         if user == 'root':
             logger.warning("⚠️  Utilisateur 'root' détecté - risque d'erreur 'role root does not exist'")
             logger.warning("   Assurez-vous que l'utilisateur 'root' existe dans PostgreSQL ou utilisez un autre utilisateur")
+            raise ValueError("L'utilisateur 'root' n'existe généralement pas dans PostgreSQL. Veuillez utiliser un autre utilisateur ou créer le rôle 'root' dans PostgreSQL.")
         
         self.connection_params = {
             'host': host,

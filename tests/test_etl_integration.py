@@ -19,12 +19,7 @@ ensure_test_environment()
 from src.database import DatabaseManager, DatabaseError, get_database_config, DatabaseEnvironment
 from src.etl.pipeline import ETLImporter
 
-import unittest
-import pandas as pd
-from datetime import date, datetime
 from pathlib import Path
-import tempfile
-import os
 import sys
 import logging
 
@@ -36,7 +31,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 sys.path.insert(0, str(Path(__file__).parent))  # Pour test_config
 
 # Import du module ETL original + configuration unifiée
-from etl.database import DatabaseManager, DatabaseError
 from etl.import_scripts import ETLImporter
 from etl.pipeline import ETLPipeline
 
