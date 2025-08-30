@@ -100,12 +100,18 @@ class ProgressionAnalyzer:
             # Tendance linéaire
             if len(session_volumes) >= self.min_sessions_for_trend:
                 x = np.arange(len(session_volumes))
-                slope, intercept, r_value, p_value, std_err = stats.linregress(
-                    x, session_volumes['volume']
-                )
-                session_volumes['trend_slope'] = slope
-                session_volumes['trend_r_squared'] = r_value ** 2
-                session_volumes['trend_p_value'] = p_value
+                try:
+                    # Ignorer les warnings de type pour scipy.stats.linregress
+                    slope, intercept, r_value, p_value, std_err = stats.linregress(x, session_volumes['volume'])  # type: ignore
+                    
+                    session_volumes['trend_slope'] = slope
+                    session_volumes['trend_r_squared'] = r_value * r_value  # type: ignore
+                    session_volumes['trend_p_value'] = p_value
+                except (ValueError, TypeError):
+                    # En cas d'erreur, valeurs par défaut
+                    session_volumes['trend_slope'] = 0.0
+                    session_volumes['trend_r_squared'] = 0.0
+                    session_volumes['trend_p_value'] = 1.0
             
             session_volumes['exercise'] = exercise
             progression_data.append(session_volumes)
@@ -264,7 +270,7 @@ class ProgressionAnalyzer:
                             threshold_cv = self.plateau_threshold  # 0.02 par défaut
                             threshold_slope = abs(mean_val) * 0.01 if mean_val != 0 else 0.01
                             
-                            is_plateau = (cv < threshold_cv and abs(slope) < threshold_slope)
+                            is_plateau = (cv < threshold_cv and abs(slope) < threshold_slope)  # type: ignore
                             
                             # Mettre à jour l'indicateur
                             exercise_data.iloc[i, exercise_data.columns.get_loc('plateau_indicator')] = is_plateau

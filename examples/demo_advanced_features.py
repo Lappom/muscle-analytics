@@ -312,7 +312,7 @@ def demo_complete_analysis():
     
     # 4. Export des données
     print("4. Export des données avec features:")
-    output_file = feature_calc.export_features_to_csv(df, sessions_df, 'demo_features_export.csv')
+    output_file = feature_calc.export_features_to_csv(df, sessions_df, 'examples/demo_features_export.csv')
     print(f"Données exportées vers: {output_file}")
     print()
 
