@@ -120,8 +120,18 @@ def client():
     """Client de test FastAPI basique - pas utilisé dans les tests avec override"""
     # Note: ce client ne doit pas être utilisé directement dans les tests API
     # car il ne configure pas les overrides de dépendances
-    from src.api.main import app
     return TestClient(app)
+
+
+@pytest.fixture
+def app_with_overrides():
+    """
+    Fixture pour l'application FastAPI avec support des overrides.
+    Nettoie automatiquement les overrides après chaque test.
+    """
+    yield app
+    # Nettoyage automatique des overrides après chaque test
+    app.dependency_overrides.clear()
 
 
 @pytest.fixture

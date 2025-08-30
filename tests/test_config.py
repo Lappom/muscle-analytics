@@ -22,7 +22,7 @@ def get_test_db_config() -> Dict[str, Any]:
     - TEST_DB_HOST: Hôte de la base de données (défaut: localhost)
     - TEST_DB_PORT: Port de la base de données (défaut: 5432)
     - TEST_DB_NAME: Nom de la base de données (défaut: muscle_analytics_test)
-    - TEST_DB_USER: Utilisateur de la base de données (défaut: postgres)
+    - TEST_DB_USER: Utilisateur de la base de données (défaut: test_user)
     - TEST_DB_PASSWORD: Mot de passe (défaut: généré aléatoirement)
     
     Returns:
@@ -35,7 +35,7 @@ def get_test_db_config() -> Dict[str, Any]:
         'host': os.getenv('TEST_DB_HOST', 'localhost'),
         'port': int(os.getenv('TEST_DB_PORT', '5432')),
         'database': os.getenv('TEST_DB_NAME', 'muscle_analytics_test'),
-        'user': os.getenv('TEST_DB_USER', 'postgres'),
+        'user': os.getenv('TEST_DB_USER', 'test_user'),
         'password': os.getenv('TEST_DB_PASSWORD', default_password)
     }
     
@@ -96,7 +96,7 @@ def create_test_env_template() -> str:
 TEST_DB_HOST=localhost
 TEST_DB_PORT=5432
 TEST_DB_NAME=muscle_analytics_test
-TEST_DB_USER=postgres
+TEST_DB_USER=test_user
 TEST_DB_PASSWORD=your_secure_test_password_here
 
 # Remarques:

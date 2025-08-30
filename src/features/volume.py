@@ -75,13 +75,12 @@ class VolumeCalculator:
         
         if group_by_exercise:
             # Volume par exercice et par séance
-            session_volumes = (working_sets
-                             .groupby(['session_id', 'exercise'])
-                             .agg({
-                                 'volume': ['sum', 'count', 'mean'],
-                                 'reps': ['sum', 'mean'],
-                                 'weight_kg': ['max', 'mean']
-                             }).round(2))
+            agg_result = working_sets.groupby(['session_id', 'exercise']).agg({
+                'volume': ['sum', 'count', 'mean'],
+                'reps': ['sum', 'mean'],
+                'weight_kg': ['max', 'mean']
+            })
+            session_volumes = agg_result.round(2)
             
             # Aplatir les colonnes multi-niveau
             session_volumes.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] 
@@ -90,12 +89,11 @@ class VolumeCalculator:
             
         else:
             # Volume total par séance (tous exercices confondus)
-            session_volumes = (working_sets
-                             .groupby('session_id')
-                             .agg({
-                                 'volume': ['sum', 'count', 'mean'],
-                                 'exercise': 'nunique'  # Nombre d'exercices différents
-                             }).round(2))
+            agg_result = working_sets.groupby('session_id').agg({
+                'volume': ['sum', 'count', 'mean'],
+                'exercise': 'nunique'  # Nombre d'exercices différents
+            })
+            session_volumes = agg_result.round(2)
             
             session_volumes.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] 
                                      for col in session_volumes.columns]
@@ -145,13 +143,11 @@ class VolumeCalculator:
         working_sets = df_with_dates[mask].copy()
         
         # Volume par semaine et par exercice
-        weekly_volumes = (working_sets
-                        .groupby(['week', 'exercise'])
-                        .agg({
-                            'volume': ['sum', 'count'],
-                            'session_id': 'nunique'  # Nombre de séances
-                        })
-                        .round(2))
+        agg_result = working_sets.groupby(['week', 'exercise']).agg({
+            'volume': ['sum', 'count'],
+            'session_id': 'nunique'  # Nombre de séances
+        })
+        weekly_volumes = agg_result.round(2)
         
         weekly_volumes.columns = [f"{col[0]}_{col[1]}" if col[1] else col[0] 
                                 for col in weekly_volumes.columns]

@@ -6,7 +6,7 @@ utilisés par les endpoints de l'API FastAPI.
 """
 
 import pandas as pd
-from typing import List, Dict, Optional, Tuple, Any, Type, TypeVar, NoReturn, Literal
+from typing import List, Dict, Optional, Tuple, Any, Literal, NoReturn
 from datetime import date, datetime, timedelta
 from fastapi import Depends, HTTPException
 import logging
@@ -19,9 +19,6 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
-
-# TypeVar pour la méthode générique safe_extract_value
-T = TypeVar('T')
 
 # Types Literal pour les opérations de base de données
 DatabaseOperation = Literal[
@@ -248,24 +245,10 @@ class AnalyticsService:
         self.db_service = db_service
         self.feature_calculator = self._feature_calculator
     
-    def _safe_extract_value(self, df: pd.DataFrame, column: str, 
-                           value_type: Type[T], use_max: bool = False, 
-                           default: Optional[T] = None) -> Optional[T]:
-        """
-        Extrait une valeur typée d'une colonne DataFrame de manière sécurisée.
-        
-        Args:
-            df: DataFrame source
-            column: Nom de la colonne
-            value_type: Type de valeur attendu (float, int, str, bool)
-            use_max: Si True, utilise max() sinon iloc[-1]
-            default: Valeur par défaut si extraction impossible
-            
-        Returns:
-            Valeur extraite ou default
-        """
+    def _safe_extract_float(self, df: pd.DataFrame, column: str, use_max: bool = False) -> Optional[float]:
+        """Extrait une valeur float d'une colonne DataFrame de manière sécurisée."""
         if column not in df.columns or df.empty:
-            return default
+            return None
         
         try:
             if use_max:
@@ -274,34 +257,60 @@ class AnalyticsService:
                 raw_value = df[column].iloc[-1]
             
             if pd.isna(raw_value):
+                return None
+                
+            return float(raw_value)
+                
+        except (ValueError, TypeError, IndexError):
+            return None
+
+    def _safe_extract_int(self, df: pd.DataFrame, column: str) -> Optional[int]:
+        """Extrait une valeur int d'une colonne DataFrame de manière sécurisée."""
+        if column not in df.columns or df.empty:
+            return None
+        
+        try:
+            raw_value = df[column].iloc[-1]
+            
+            if pd.isna(raw_value):
+                return None
+                
+            return int(raw_value)
+                
+        except (ValueError, TypeError, IndexError):
+            return None
+
+    def _safe_extract_bool(self, df: pd.DataFrame, column: str, default: bool = False) -> bool:
+        """Extrait une valeur bool d'une colonne DataFrame de manière sécurisée."""
+        if column not in df.columns or df.empty:
+            return default
+        
+        try:
+            raw_value = df[column].iloc[-1]
+            
+            if pd.isna(raw_value):
                 return default
                 
-            if value_type == bool:
-                return bool(raw_value)  # type: ignore
-            elif value_type == str:
-                return str(raw_value)  # type: ignore
-            else:
-                return value_type(raw_value)  # type: ignore
+            return bool(raw_value)
                 
         except (ValueError, TypeError, IndexError):
             return default
-    
-    def _safe_extract_float(self, df: pd.DataFrame, column: str, use_max: bool = False) -> Optional[float]:
-        """Extrait une valeur float d'une colonne."""
-        return self._safe_extract_value(df, column, float, use_max)
-    
-    def _safe_extract_int(self, df: pd.DataFrame, column: str) -> Optional[int]:
-        """Extrait une valeur int d'une colonne."""
-        return self._safe_extract_value(df, column, int)
-    
-    def _safe_extract_bool(self, df: pd.DataFrame, column: str, default: bool = False) -> bool:
-        """Extrait une valeur bool d'une colonne."""
-        result = self._safe_extract_value(df, column, bool, default=default)
-        return result if result is not None else default
-    
+
     def _safe_extract_str(self, df: pd.DataFrame, column: str) -> Optional[str]:
-        """Extrait une valeur string d'une colonne."""
-        return self._safe_extract_value(df, column, str)
+        """Extrait une valeur string d'une colonne DataFrame de manière sécurisée."""
+        if column not in df.columns or df.empty:
+            return None
+        
+        try:
+            raw_value = df[column].iloc[-1]
+            
+            if pd.isna(raw_value):
+                return None
+                
+            return str(raw_value)
+                
+        except (ValueError, TypeError, IndexError):
+            return None
     
     def _convert_to_dataframe(self, data_list: List, data_type: str) -> pd.DataFrame:
         """

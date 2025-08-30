@@ -6,8 +6,20 @@ Ce module combine :
 2. Gestionnaire de base de données (DatabaseManager)
 3. Utilitaires de connexion
 
+Sécurité:
+- Validation de l'utilisateur 'root' avec possibilité de bypass
+- Variables d'environnement: ALLOW_ROOT_USER=true pour autoriser 'root'
+
 Usage simple :
     from src.database import get_database, DatabaseEnvironment
+    
+Usage avancé avec 'root' :
+    # Autoriser 'root' via paramètre
+    db = DatabaseManager(user='root', allow_root_user=True)
+    
+    # Ou via variable d'environnement
+    os.environ['ALLOW_ROOT_USER'] = 'true'
+    db = DatabaseManager(user='root')
     
     # Automatique selon l'environnement
     db = get_database()
@@ -97,8 +109,8 @@ class DatabaseConfig:
             'host': os.getenv('TEST_DB_HOST', 'localhost'),
             'port': int(os.getenv('TEST_DB_PORT', '5432')),  # Port CI identique
             'database': os.getenv('TEST_DB_NAME', 'muscle_analytics_test'),
-            'user': os.getenv('TEST_DB_USER', 'postgres'),
-            'password': os.getenv('TEST_DB_PASSWORD', 'password')
+            'user': os.getenv('TEST_DB_USER', 'test_user'),
+            'password': os.getenv('TEST_DB_PASSWORD', 'test_password')
         }
     
     def _get_prod_config(self) -> Dict[str, Any]:
@@ -158,7 +170,8 @@ class DatabaseManager:
                  port: int = 5432,
                  database: str = "muscle_analytics",
                  user: str = "postgres", 
-                 password: str = "password"):
+                 password: str = "password",
+                 allow_root_user: bool = False):
         """
         Initialise le gestionnaire de base de données.
         
@@ -168,15 +181,32 @@ class DatabaseManager:
             database: Nom de la base de données
             user: Utilisateur
             password: Mot de passe
+            allow_root_user: Permet l'utilisation de l'utilisateur 'root' (défaut: False)
         """
-        # Validation stricte de l'utilisateur pour éviter l'erreur 'role root does not exist'
+        # Validation de l'utilisateur avec possibilité de bypass pour 'root'
         if not user or user.strip() == '':
             raise ValueError("L'utilisateur de base de données ne peut pas être vide")
         
-        if user == 'root':
+        # Permettre bypass via variable d'environnement
+        env_allow_root = os.getenv('ALLOW_ROOT_USER', 'false').lower() in ('true', '1', 'yes')
+        allow_root = allow_root_user or env_allow_root
+        
+        if user == 'root' and not allow_root:
             logger.warning("⚠️  Utilisateur 'root' détecté - risque d'erreur 'role root does not exist'")
-            logger.warning("   Assurez-vous que l'utilisateur 'root' existe dans PostgreSQL ou utilisez un autre utilisateur")
-            raise ValueError("L'utilisateur 'root' n'existe généralement pas dans PostgreSQL. Veuillez utiliser un autre utilisateur ou créer le rôle 'root' dans PostgreSQL.")
+            logger.warning("   Solutions possibles :")
+            logger.warning("   1. Utiliser un autre utilisateur (recommandé) : postgres, test_user, etc.")
+            logger.warning("   2. Créer le rôle 'root' dans PostgreSQL")
+            logger.warning("   3. Utiliser allow_root_user=True si 'root' est configuré intentionnellement")
+            logger.warning("   4. Définir ALLOW_ROOT_USER=true dans les variables d'environnement")
+            raise ValueError(
+                "L'utilisateur 'root' n'existe généralement pas dans PostgreSQL. "
+                "Utilisez allow_root_user=True ou ALLOW_ROOT_USER=true pour forcer l'utilisation de 'root' "
+                "ou choisissez un autre utilisateur."
+            )
+        elif user == 'root' and allow_root:
+            source = "variable d'environnement" if env_allow_root else "paramètre explicite"
+            logger.info(f"✅ Utilisation de l'utilisateur 'root' autorisée via {source}")
+            logger.info("   Assurez-vous que le rôle 'root' existe dans votre PostgreSQL")
         
         self.connection_params = {
             'host': host,
