@@ -99,7 +99,13 @@ class TestETLImporter(unittest.TestCase):
             logger.warning(f"Base de données non disponible ({e}), utilisation de mocks pour les tests")
     
     def test_filter_new_data(self):
-        """Test du filtrage des nouvelles données"""
+        """
+        Test du filtrage des nouvelles données
+        
+        Note: Ce test accède à une méthode privée (_filter_new_data) pour valider
+        la logique de filtrage de façon isolée. Cette approche est justifiée car
+        la logique de filtrage est complexe et critique pour l'import incrémental.
+        """
         from datetime import date, timedelta
         
         # Utilisation de dates récentes pour le test
@@ -150,6 +156,60 @@ class TestETLImporter(unittest.TestCase):
         self.assertEqual(len(filtered), 2)  # 2 nouvelles dates
         self.assertNotIn('2024-08-29', filtered['date'].values)
     
+    def test_incremental_import_filtering_integration(self):
+        """
+        Test d'intégration du filtrage via l'interface publique incremental_import
+        
+        Ce test valide que la fonctionnalité de filtrage fonctionne correctement
+        à travers l'interface publique, comme suggéré par les bonnes pratiques de test.
+        """
+        import tempfile
+        import os
+        from datetime import date, timedelta
+        
+        # Création d'un fichier CSV temporaire pour le test
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+        
+        test_csv_content = f"""date,exercise,reps,weight_kg
+{yesterday.strftime('%Y-%m-%d')},Squat,10,50.0
+{today.strftime('%Y-%m-%d')},Bench Press,8,60.0
+"""
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            f.write(test_csv_content)
+            temp_file = f.name
+        
+        try:
+            # Mock la méthode get_existing_data_dates pour simuler des données existantes
+            original_method = self.importer.db_manager.get_existing_data_dates
+            self.importer.db_manager.get_existing_data_dates = lambda: [yesterday]
+            
+            # Mock bulk_insert_from_dataframe pour éviter l'insertion réelle
+            inserted_data = []
+            def mock_insert(df):
+                inserted_data.append(df)
+                return {'sessions_created': 1, 'sets_inserted': len(df)}
+            
+            self.importer.db_manager.bulk_insert_from_dataframe = mock_insert
+            
+            # Test de l'import incrémental
+            result = self.importer.incremental_import(temp_file, days_threshold=30)
+            
+            # Vérifications
+            self.assertTrue(result['success'])
+            if inserted_data:
+                # Seules les nouvelles données (aujourd'hui) doivent être importées
+                self.assertEqual(len(inserted_data[0]), 1)
+                self.assertEqual(inserted_data[0]['date'].iloc[0], today.strftime('%Y-%m-%d'))
+            
+            # Restore la méthode originale
+            self.importer.db_manager.get_existing_data_dates = original_method
+            
+        finally:
+            # Nettoyage du fichier temporaire
+            os.unlink(temp_file)
+
     def test_generate_import_report(self):
         """Test de génération de rapport"""
         test_results = {

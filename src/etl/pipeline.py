@@ -6,7 +6,7 @@ Orchestrateur qui combine parsing et normalisation.
 
 import pandas as pd
 from pathlib import Path
-from typing import Optional, Union, List, Sequence, Dict, Any
+from typing import Optional, Union, Sequence, Dict, Any
 import logging
 
 from .csv_parser import CSVParser, CSVParserError

@@ -345,7 +345,26 @@ class ETLImporter:
     
     def _filter_new_data(self, df: pd.DataFrame, existing_dates: set,
                         days_threshold: int, reference_date: Optional[date] = None) -> pd.DataFrame:
-        """Filtre pour ne garder que les données récentes non existantes"""
+        """
+        Filters the input DataFrame to retain only recent data entries that do not already exist in the database.
+        The method uses `days_threshold` and `reference_date` together to determine which rows are considered "recent":
+        - `reference_date` (date, optional): The anchor date from which to calculate recency. If not provided, defaults to today's date.
+        - `days_threshold` (int): The number of days before the `reference_date` to include. Only rows with a 'date' within this window are considered.
+        
+        Filtering logic:
+        - For each row, parse the 'date' column as a date.
+        - Keep rows where 'date' >= (`reference_date` - `days_threshold` days).
+        - Exclude rows whose 'date' is present in `existing_dates`.
+        
+        Args:
+            df (pd.DataFrame): Input data to filter. Must contain a 'date' column.
+            existing_dates (set): Set of dates already present in the database.
+            days_threshold (int): Number of days to look back from `reference_date`.
+            reference_date (date, optional): Anchor date for filtering. Defaults to today if None.
+            
+        Returns:
+            pd.DataFrame: Filtered DataFrame containing only new and recent rows.
+        """
         if df.empty:
             return df
         

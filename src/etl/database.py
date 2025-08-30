@@ -189,7 +189,7 @@ class DatabaseManager:
         Returns:
             Liste de muscles (vide si la valeur est invalide)
         """
-        if isinstance(muscle_value, str) and pd.notna(muscle_value):
+        if isinstance(muscle_value, str) and muscle_value is not None and muscle_value != '':
             return muscle_value.split(', ')
         return []
     
