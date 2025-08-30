@@ -250,19 +250,19 @@ def main():
             logger.error("ARRÊT de la démonstration - problème de base de données")
             return
         
-        print()  # Ligne vide pour la lisibilité
+        logger.info('')  # Ligne vide pour la lisibilité
         
         # 2. Test du pipeline
         test_pipeline_processing()
-        print()
+        logger.info('')
         
         # 3. Test d'import
         test_database_import()
-        print()
+        logger.info('')
         
         # 4. Test d'import incrémental
         test_incremental_import()
-        print()
+        logger.info('')
         
         # 5. Rapport final
         generate_demo_report()

@@ -8,7 +8,7 @@ import pandas as pd
 from pathlib import Path
 from typing import List, Union, Optional, Dict, Any
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 from .pipeline import ETLPipeline
 from .database import DatabaseManager, DatabaseError
@@ -354,7 +354,6 @@ class ETLImporter:
         
         # Calculer la date seuil
         cutoff_date = datetime.now().date()
-        from datetime import timedelta
         
         # Filtrer les données récentes et non existantes
         mask = (df_copy['date_parsed'] >= (cutoff_date - timedelta(days=days_threshold))) & \
@@ -386,7 +385,6 @@ class ETLImporter:
         
         # Utiliser la date de référence fournie ou la date actuelle
         cutoff_date = reference_date or datetime.now().date()
-        from datetime import timedelta
         
         # Filtrer les données récentes et non existantes
         mask = (df_copy['date_parsed'] >= (cutoff_date - timedelta(days=days_threshold))) & \
