@@ -2,9 +2,10 @@
 
 > Plateforme d'analyse et de prédiction intelligente pour l'entraînement de force
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://python.org)
+[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com)
+[![Security](https://img.shields.io/badge/Security-Enhanced-green.svg)](README.md)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Un projet **Data Science & IA** qui transforme vos logs d'entraînements (CSV/XML) en **insights actionnables** : dashboards interactifs, métriques de progression, estimations 1RM et prédictions pour optimiser votre entraînement.
@@ -35,6 +36,8 @@ Convertir vos logs de musculation en **insights actionnables** :
 - **Normalisation automatique** : virgules décimales → points, dates → ISO
 - **Mapping intelligent** des exercices et groupes musculaires
 - **Import incrémental** avec détection de doublons
+- **🔐 Configuration sécurisée** : Variables d'environnement pour toutes les connexions DB
+- **Tests déterministes** : Configuration par environnement (dev/test/prod)
 
 ### 📊 Dashboard interactif
 
@@ -62,10 +65,11 @@ Convertir vos logs de musculation en **insights actionnables** :
 
 ### Backend & ML
 
-- **Python 3.8+** : Pandas, Scikit-learn, NumPy
+- **Python 3.9+** : Pandas, Scikit-learn, NumPy
 - **FastAPI** : API REST performante et auto-documentée
 - **Prophet/ARIMA** : modèles de forecasting
 - **SQLAlchemy** : ORM pour la base de données
+- **🔒 Configuration sécurisée** : Gestion multi-environnements
 
 ### Frontend
 
@@ -75,10 +79,11 @@ Convertir vos logs de musculation en **insights actionnables** :
 
 ### Infrastructure
 
-- **PostgreSQL** : base de données robuste
-- **SQLite** : alternative pour prototype
-- **Docker & Docker Compose** : containerisation
-- **Redis** : cache et sessions (optionnel)
+- **PostgreSQL 13+** : Base de données relationnelle robuste
+- **🔒 Multi-environnements** : Configuration sécurisée pour dev/test/prod
+- **Docker & Docker Compose** : Déploiement containerisé
+- **SQLite** : Alternative pour prototype
+- **Redis** : Cache et sessions (optionnel)
 
 ### Qualité & CI/CD
 
@@ -89,7 +94,7 @@ Convertir vos logs de musculation en **insights actionnables** :
 
 ---
 
-## 📁 Formats de données supportés
+## 📁 Formats de données supportés (**GymBook** app)
 
 ### CSV
 
@@ -151,14 +156,15 @@ exercises (
 
 ---
 
-## 🚀 Installation rapide
+## 🚀 Installation et Configuration
 
 ### Prérequis
 
-- Docker et Docker Compose
-- Git
+- **Docker et Docker Compose**
+- **Git**
+- **Python 3.9+** (pour développement local)
 
-### Démarrage
+### 🔒 Configuration Sécurisée
 
 ```bash
 # 1. Cloner le repository
@@ -167,14 +173,39 @@ cd muscle-analytics
 
 # 2. Configurer l'environnement
 cp .env.example .env
-# Éditer .env avec vos paramètres DB
+# Éditer .env avec vos paramètres sécurisés
+# DB_HOST=localhost
+# DB_NAME=muscle_analytics_dev
+# DB_USER=muscle_user
+# DB_PASSWORD=votre_mot_de_passe_securise
+# DB_TEST_NAME=muscle_analytics_test
 
-# 3. Lancer l'application
-docker compose up --build
+# 3. Configuration multi-environnements
+python setup_databases.py  # Configurer dev/test/prod
 
-# 4. Accéder à l'application
+# 4. Lancer avec Docker sécurisé
+docker compose -f docker-compose.secure.yml up --build
+
+# 5. Accéder à l'application
 # Dashboard : http://localhost:3000
 # API : http://localhost:8000/docs
+```
+
+### 🔧 Développement Local
+
+```bash
+# Installation Python (environnement virtuel recommandé)
+python -m venv venv
+venv\Scripts\activate  # Windows
+source venv/bin/activate  # Linux/Mac
+
+pip install -r requirements-dev.txt
+
+# Tests avec configuration sécurisée
+pytest tests/ -v
+
+# Lancement API locale
+cd src/api && python main.py
 ```
 
 **Alternative rapide (prototype) :**
@@ -186,51 +217,90 @@ streamlit run app/main.py
 
 ---
 
-## 🧪 Développement
+## 🧪 Développement et Architecture
 
-### Structure du projet
+### 🗂️ Structure du projet
 
-```
+```text
 muscle-analytics/
-├── app/                    # Application principale
-│   ├── api/               # Endpoints FastAPI
-│   ├── core/              # Configuration et utilitaires
-│   ├── etl/               # Pipeline ETL
-│   ├── ml/                # Modèles ML
-│   └── ui/                # Interface utilisateur
-├── notebooks/             # EDA et expérimentations
-├── tests/                 # Tests unitaires et d'intégration
-├── docker/                # Configuration Docker
-└── docs/                  # Documentation
+├── src/                    # Code source principal
+│   ├── api/               # API FastAPI
+│   ├── database.py        # Module unifié de gestion DB
+│   ├── etl/               # Pipeline ETL sécurisé
+│   │   ├── csv_parser.py
+│   │   ├── xml_parser.py
+│   │   ├── import_scripts.py  # Tests déterministes
+│   │   └── pipeline.py
+│   └── features/          # Fonctionnalités ML
+├── tests/                 # Tests avec config sécurisée
+│   ├── test_etl_integration.py
+│   └── test_config.py
+├── docker-compose.secure.yml  # Docker sécurisé
+├── setup_databases.py     # Gestionnaire de configuration
+└── .env.example           # Template de configuration
 ```
 
-### Workflow Git
+### 🔒 Sécurité et Configuration
+
+#### Multi-environnements
+
+- **dev** : PostgreSQL local (port 5432)
+- **test** : PostgreSQL séparé (port 5433)
+- **docker** : Conteneur avec variables d'environnement
+- **prod** : Configuration cloud sécurisée
+
+#### Variables d'environnement
+
+```bash
+# Base de données principale
+DB_HOST=localhost
+DB_NAME=muscle_analytics_dev
+DB_USER=muscle_user
+DB_PASSWORD=***sécurisé***
+
+# Base de test séparée
+DB_TEST_HOST=localhost
+DB_TEST_NAME=muscle_analytics_test
+DB_TEST_USER=test_user
+DB_TEST_PASSWORD=***sécurisé***
+```
+
+### 🧪 Tests et Qualité
+
+```bash
+# Tests avec configuration sécurisée
+pytest tests/ --cov=src --cov-report=html
+
+# Tests spécifiques
+pytest tests/test_etl_integration.py -v
+pytest tests/test_config.py -v
+
+# Qualité du code
+black src/ tests/
+isort src/ tests/
+flake8 src/ tests/
+```
+
+### 🔄 Workflow Git
 
 - **`main`** : version stable
 - **`dev`** : intégration continue
 - **`feat/xxx`** : nouvelles fonctionnalités
 
-### Standards de code
-
-```bash
-# Tests
-pytest tests/ --cov=app --cov-report=html
-
-# Qualité du code
-black app/ tests/
-isort app/ tests/
-flake8 app/ tests/
-```
-
 ---
 
-## 📋 Livrables
+## 📋 Fonctionnalités Réalisées
 
-- ✅ **Repository GitHub** avec README et Roadmap
-- 📊 **Notebooks EDA** et modèles ML
-- 🖥️ **Dashboard fonctionnel** + API REST
-- 🎥 **Vidéo démo** (1-2 min) et rapport technique
-- 📚 **Documentation complète** et guide utilisateur
+- ✅ **Pipeline ETL sécurisé** avec tests déterministes
+- ✅ **Configuration multi-environnements** (dev/test/docker/prod)
+- ✅ **Gestion unifiée des bases de données** avec variables d'environnement
+- ✅ **Tests d'intégration** avec configuration sécurisée
+- ✅ **Parsing CSV/XML** pour données GymBook
+- ✅ **Architecture modulaire** et extensible
+- 📊 **Notebooks EDA** et modèles ML (en cours)
+- 🖥️ **Dashboard fonctionnel** + API REST (en cours)
+- 🎥 **Vidéo démo** (1-2 min) et rapport technique (prévu)
+- 📚 **Documentation complète** et guide utilisateur (en cours)
 
 ---
 
@@ -257,6 +327,8 @@ Ce projet est sous licence [MIT](LICENSE) - libre d'utilisation pour des projets
 
 ## 👨‍💻 Auteur
 
+## 👨‍💻 Développeur
+
 **Lappom** - Développeur Data Science & ML
 
 - 🐙 **GitHub** : [@Lappom]
@@ -271,7 +343,7 @@ Ce projet est sous licence [MIT](LICENSE) - libre d'utilisation pour des projets
 
 ---
 
-<div align="center">
+**Muscle Analytics** - Optimisez vos entraînements avec l'intelligence artificielle ! 🚀
 
 **⭐ Si ce projet vous plaît, n'oubliez pas de le star !**
 

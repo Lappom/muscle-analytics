@@ -194,13 +194,14 @@ class ETLImporter:
             }
     
     def incremental_import(self, file_or_directory: Union[str, Path],
-                          days_threshold: int = 7) -> Dict[str, Any]:
+                          days_threshold: int = 7, reference_date: Optional[date] = None) -> Dict[str, Any]:
         """
         Import incrémental intelligent.
         
         Args:
             file_or_directory: Fichier ou répertoire à importer
             days_threshold: Seuil en jours pour considérer les données comme récentes
+            reference_date: Date de référence pour le calcul (optionnel, par défaut: aujourd'hui)
             
         Returns:
             Dictionnaire avec résultats de l'import
@@ -213,11 +214,11 @@ class ETLImporter:
             
             if path.is_file():
                 # Import d'un fichier unique
-                return self._incremental_import_file(path, existing_dates, days_threshold)
+                return self._incremental_import_file(path, existing_dates, days_threshold, reference_date)
             
             elif path.is_dir():
                 # Import d'un répertoire
-                return self._incremental_import_directory(path, existing_dates, days_threshold)
+                return self._incremental_import_directory(path, existing_dates, days_threshold, reference_date)
             
             else:
                 raise ETLImportError(f"Chemin non valide: {path}")
@@ -232,7 +233,7 @@ class ETLImporter:
             }
     
     def _incremental_import_file(self, file_path: Path, existing_dates: set,
-                                days_threshold: int) -> Dict[str, Any]:
+                                days_threshold: int, reference_date: Optional[date] = None) -> Dict[str, Any]:
         """Import incrémental d'un fichier"""
         logger.info(f"Import incrémental de {file_path.name}")
         
@@ -247,7 +248,7 @@ class ETLImporter:
             }
         
         # Filtrage des données récentes
-        new_data = self._filter_new_data(df, existing_dates, days_threshold)
+        new_data = self._filter_new_data(df, existing_dates, days_threshold, reference_date)
         
         if new_data.empty:
             return {
@@ -271,7 +272,7 @@ class ETLImporter:
         }
     
     def _incremental_import_directory(self, directory_path: Path, existing_dates: set,
-                                     days_threshold: int) -> Dict[str, Any]:
+                                     days_threshold: int, reference_date: Optional[date] = None) -> Dict[str, Any]:
         """Import incrémental d'un répertoire"""
         csv_files = list(directory_path.glob("*.csv"))
         xml_files = list(directory_path.glob("*.xml"))
@@ -293,7 +294,7 @@ class ETLImporter:
         
         for file_path in all_files:
             try:
-                result = self._incremental_import_file(file_path, existing_dates, days_threshold)
+                result = self._incremental_import_file(file_path, existing_dates, days_threshold, reference_date)
                 global_stats['files_processed'] += 1
                 
                 if result['success'] and result['stats'].get('new_data_found', False):
@@ -343,7 +344,7 @@ class ETLImporter:
             return pd.DataFrame()
     
     def _filter_new_data(self, df: pd.DataFrame, existing_dates: set,
-                        days_threshold: int) -> pd.DataFrame:
+                        days_threshold: int, reference_date: Optional[date] = None) -> pd.DataFrame:
         """Filtre pour ne garder que les données récentes non existantes"""
         if df.empty:
             return df
@@ -352,8 +353,8 @@ class ETLImporter:
         df_copy = df.copy()
         df_copy['date_parsed'] = pd.to_datetime(df_copy['date']).dt.date
         
-        # Calculer la date seuil
-        cutoff_date = datetime.now().date()
+        # Calculer la date seuil (utilise la date de référence ou la date actuelle)
+        cutoff_date = reference_date or datetime.now().date()
         
         # Filtrer les données récentes et non existantes
         mask = (df_copy['date_parsed'] >= (cutoff_date - timedelta(days=days_threshold))) & \
@@ -362,35 +363,6 @@ class ETLImporter:
         new_data = df_copy[mask].drop('date_parsed', axis=1)
         
         logger.info(f"Filtrage: {len(new_data)}/{len(df)} lignes sont nouvelles et récentes")
-        
-        return new_data
-    
-    def _filter_new_data_for_testing(self, df: pd.DataFrame, existing_dates: set,
-                                    days_threshold: int, reference_date: Optional[date] = None) -> pd.DataFrame:
-        """
-        Version de _filter_new_data pour les tests avec date de référence configurable.
-        
-        Args:
-            df: DataFrame à filtrer
-            existing_dates: Dates déjà existantes
-            days_threshold: Seuil en jours
-            reference_date: Date de référence (par défaut: aujourd'hui)
-        """
-        if df.empty:
-            return df
-        
-        # Convertir les dates du DataFrame
-        df_copy = df.copy()
-        df_copy['date_parsed'] = pd.to_datetime(df_copy['date']).dt.date
-        
-        # Utiliser la date de référence fournie ou la date actuelle
-        cutoff_date = reference_date or datetime.now().date()
-        
-        # Filtrer les données récentes et non existantes
-        mask = (df_copy['date_parsed'] >= (cutoff_date - timedelta(days=days_threshold))) & \
-               (~df_copy['date_parsed'].isin(existing_dates))
-        
-        new_data = df_copy[mask].drop('date_parsed', axis=1)
         
         return new_data
     

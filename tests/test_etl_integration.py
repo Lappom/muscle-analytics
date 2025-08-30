@@ -16,10 +16,15 @@ logger = logging.getLogger(__name__)
 
 # Ajout du chemin pour les imports
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
+sys.path.insert(0, str(Path(__file__).parent))  # Pour test_config
 
+# Import du module ETL original + configuration unifiée
 from etl.database import DatabaseManager, DatabaseError
 from etl.import_scripts import ETLImporter
 from etl.pipeline import ETLPipeline
+
+# Import de la configuration unifiée
+from database import get_database_config, DatabaseEnvironment
 
 
 class TestDatabaseManager(unittest.TestCase):
@@ -27,18 +32,17 @@ class TestDatabaseManager(unittest.TestCase):
     
     def setUp(self):
         """Configuration des tests"""
-        # Utilisation d'une configuration de test
-        self.db_manager = DatabaseManager(
-            host="localhost",
-            database="muscle_analytics_test",
-            user="postgres",
-            password="password"
-        )
+        # Utilisation de la configuration sécurisée unifiée
+        db_config = get_database_config(DatabaseEnvironment.TEST)
+        self.db_manager = DatabaseManager(**db_config)
     
     def test_connection_params(self):
         """Test des paramètres de connexion"""
-        self.assertEqual(self.db_manager.connection_params['host'], "localhost")
-        self.assertEqual(self.db_manager.connection_params['database'], "muscle_analytics_test")
+        # Test que les paramètres sont bien configurés (sans exposer les valeurs)
+        self.assertIsNotNone(self.db_manager.connection_params.get('host'))
+        self.assertIsNotNone(self.db_manager.connection_params.get('database'))
+        self.assertIsNotNone(self.db_manager.connection_params.get('user'))
+        self.assertIsNotNone(self.db_manager.connection_params.get('password'))
     
     def test_insert_session(self):
         """Test d'insertion de session"""
@@ -74,28 +78,25 @@ class TestETLImporter(unittest.TestCase):
     
     def setUp(self):
         """Configuration des tests"""
-        # Créer un importer avec un mock du database manager si DB non disponible
+        # Créer un importer avec configuration sécurisée
         try:
-            db_manager = DatabaseManager(
-                host="localhost",
-                database="muscle_analytics_test",
-                user="postgres",
-                password="password"
-            )
+            db_config = get_database_config(DatabaseEnvironment.TEST)
+            db_manager = DatabaseManager(**db_config)
             
             # Tester la connexion
             if db_manager.test_connection():
                 self.importer = ETLImporter(db_manager)
                 self.has_database = True
+                logger.info("Base de données de test connectée avec succès")
             else:
                 # Créer un mock simple pour les tests
                 self.importer = ETLImporter()
                 self.has_database = False
                 logger.warning("Base de données non disponible, utilisation de mocks pour les tests")
-        except Exception:
+        except Exception as e:
             self.importer = ETLImporter()
             self.has_database = False
-            logger.warning("Base de données non disponible, utilisation de mocks pour les tests")
+            logger.warning(f"Base de données non disponible ({e}), utilisation de mocks pour les tests")
     
     def test_filter_new_data(self):
         """Test du filtrage des nouvelles données"""
@@ -142,15 +143,12 @@ class TestETLImporter(unittest.TestCase):
         
         existing_dates = {date(2024, 8, 29)}
         
-        # Test avec la méthode de test qui accepte une date de référence
-        if hasattr(self.importer, '_filter_new_data_for_testing'):
-            filtered = self.importer._filter_new_data_for_testing(
-                test_data, existing_dates, 30, reference_date
-            )
-            self.assertEqual(len(filtered), 2)  # 2 nouvelles dates
-            self.assertNotIn('2024-08-29', filtered['date'].values)
-        else:
-            self.skipTest("Méthode de test non disponible")
+        # Test avec la méthode unifiée qui accepte une date de référence
+        filtered = self.importer._filter_new_data(
+            test_data, existing_dates, 30, reference_date
+        )
+        self.assertEqual(len(filtered), 2)  # 2 nouvelles dates
+        self.assertNotIn('2024-08-29', filtered['date'].values)
     
     def test_generate_import_report(self):
         """Test de génération de rapport"""
@@ -324,11 +322,15 @@ def run_tests():
     
     # Tests de base de données seulement si disponible
     try:
-        db_manager = DatabaseManager()
+        db_config = get_database_config(DatabaseEnvironment.TEST)
+        db_manager = DatabaseManager(**db_config)
         if db_manager.test_connection():
             test_suite.addTest(unittest.makeSuite(TestDatabaseManager))
-    except Exception:
-        print("⚠️  Tests de base de données ignorés (DB non disponible)")
+            print("✅ Tests de base de données inclus")
+        else:
+            print("⚠️  Tests de base de données ignorés (connexion échouée)")
+    except Exception as e:
+        print(f"⚠️  Tests de base de données ignorés (erreur: {e})")
     
     # Exécution des tests
     runner = unittest.TextTestRunner(verbosity=2)

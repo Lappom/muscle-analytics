@@ -176,6 +176,23 @@ class DatabaseManager:
         except Exception as e:
             raise DatabaseError(f"Erreur lors de l'insertion de série: {e}")
     
+    def _parse_muscle_list(self, muscle_value: Any) -> List[str]:
+        """
+        Parse une valeur de muscle en liste de strings.
+        
+        Gère de manière cohérente les valeurs string, NaN, et None
+        pour les champs muscles_primary et muscles_secondary.
+        
+        Args:
+            muscle_value: Valeur à parser (peut être string, NaN, None, etc.)
+            
+        Returns:
+            Liste de muscles (vide si la valeur est invalide)
+        """
+        if isinstance(muscle_value, str) and pd.notna(muscle_value):
+            return muscle_value.split(', ')
+        return []
+    
     def insert_exercise_catalog(self, name: str, main_region: str,
                                muscles_primary: List[str], muscles_secondary: List[str]) -> bool:
         """
@@ -259,12 +276,8 @@ class DatabaseManager:
                             if all(col in row and pd.notna(row[col]) for col in 
                                   ['exercise', 'main_region', 'muscles_primary']):
                                 
-                                primary_muscles = (row['muscles_primary'].split(', ') 
-                                                 if isinstance(row['muscles_primary'], str) 
-                                                 else [])
-                                secondary_muscles = (row['muscles_secondary'].split(', ')
-                                                   if isinstance(row['muscles_secondary'], str) and pd.notna(row['muscles_secondary'])
-                                                   else [])
+                                primary_muscles = self._parse_muscle_list(row['muscles_primary'])
+                                secondary_muscles = self._parse_muscle_list(row['muscles_secondary'])
                                 
                                 self.insert_exercise_catalog(
                                     name=row['exercise'],

@@ -1,0 +1,116 @@
+# Docker Compose Sécurisé avec Variables d'Environnement
+version: '3.8'
+
+services:
+  # Base de données principale
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${DB_NAME:-muscle_analytics}
+      POSTGRES_USER: ${DB_USER:-dev}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-devpass}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-dev} -d ${DB_NAME:-muscle_analytics}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - muscle_network
+
+  # Base de données de test (séparée)
+  postgres-test:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: ${TEST_DB_NAME:-muscle_analytics_test}
+      POSTGRES_USER: ${TEST_DB_USER:-test_user}
+      POSTGRES_PASSWORD: ${TEST_DB_PASSWORD:-testpass}
+    ports:
+      - "${TEST_DB_PORT:-5433}:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEST_DB_USER:-test_user} -d ${TEST_DB_NAME:-muscle_analytics_test}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - muscle_network
+    profiles:
+      - test  # Démarré seulement avec --profile test
+
+  # API principale
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Configuration automatique de l'environnement
+      APP_ENV: ${APP_ENV:-docker}
+      
+      # Variables de base de données principales
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-muscle_analytics}
+      DB_USER: ${DB_USER:-dev}
+      DB_PASSWORD: ${DB_PASSWORD:-devpass}
+      DATABASE_URL: postgresql://${DB_USER:-dev}:${DB_PASSWORD:-devpass}@postgres:5432/${DB_NAME:-muscle_analytics}
+      
+      # Variables de base de données de test
+      TEST_DB_HOST: postgres-test
+      TEST_DB_PORT: 5432
+      TEST_DB_NAME: ${TEST_DB_NAME:-muscle_analytics_test}
+      TEST_DB_USER: ${TEST_DB_USER:-test_user}
+      TEST_DB_PASSWORD: ${TEST_DB_PASSWORD:-testpass}
+      
+      # Autres configurations
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG: ${DEBUG:-false}
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./examples:/app/examples
+    networks:
+      - muscle_network
+
+  # Service de test (optionnel)
+  test-runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python -m pytest tests/ -v
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    environment:
+      APP_ENV: test
+      TEST_DB_HOST: postgres-test
+      TEST_DB_PORT: 5432
+      TEST_DB_NAME: ${TEST_DB_NAME:-muscle_analytics_test}
+      TEST_DB_USER: ${TEST_DB_USER:-test_user}
+      TEST_DB_PASSWORD: ${TEST_DB_PASSWORD:-testpass}
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+    networks:
+      - muscle_network
+    profiles:
+      - test
+
+volumes:
+  postgres_data:
+  postgres_test_data:
+
+networks:
+  muscle_network:
+    driver: bridge
