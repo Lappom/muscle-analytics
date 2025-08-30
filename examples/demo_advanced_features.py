@@ -5,6 +5,9 @@ Ce script montre comment utiliser les nouveaux modules de calcul :
 - Volume d'entraînement
 - 1RM estimé
 - Progression et tendances
+
+Note: Les données générées sont déterministes (avec graine fixe) pour assurer
+des résultats reproductibles et faciliter le debugging.
 """
 
 import sys
@@ -22,94 +25,40 @@ from src.features.volume import VolumeCalculator
 from src.features.one_rm import OneRMCalculator
 from src.features.progression import ProgressionAnalyzer
 
+# Importer le générateur de données déterministes local
+from deterministic_data_generator import create_demo_dataset
+
 
 def create_sample_data():
-    """Crée des données d'exemple pour la démonstration."""
-    # Données d'entraînement simulées sur 6 semaines
-    data = []
-    session_id = 1
+    """
+    Crée des données d'exemple pour la démonstration.
     
-    # Progression réaliste sur 6 semaines
-    exercises = {
-        'Bench Press': {'start_weight': 80, 'progression': 2.5},
-        'Squat': {'start_weight': 100, 'progression': 5},
-        'Deadlift': {'start_weight': 120, 'progression': 5},
-        'Overhead Press': {'start_weight': 50, 'progression': 1.25}
-    }
+    Utilise le générateur de données déterministes pour assurer
+    la reproductibilité des résultats.
+    """
+    # Utiliser le générateur déterministe
+    training_df, sessions_df = create_demo_dataset(
+        weeks=6,
+        sessions_per_week=2,
+        include_warmup=True,
+        seed=42  # Graine fixe pour reproductibilité
+    )
     
-    for week in range(6):
-        for session in range(2):  # 2 séances par semaine
-            for exercise, params in exercises.items():
-                # Progression du poids
-                current_weight = params['start_weight'] + (week * params['progression'])
-                
-                # 3 sets par exercice avec variation
-                for set_num in range(3):
-                    if set_num == 0:  # Premier set - plus de reps
-                        reps = np.random.randint(10, 12)
-                        weight = current_weight * 0.9
-                    elif set_num == 1:  # Deuxième set - poids max
-                        reps = np.random.randint(8, 10)
-                        weight = current_weight
-                    else:  # Troisième set - fatigue
-                        reps = np.random.randint(6, 9)
-                        weight = current_weight * 0.95
-                    
-                    data.append({
-                        'session_id': session_id,
-                        'exercise': exercise,
-                        'series_type': 'principale',
-                        'reps': reps,
-                        'weight_kg': round(weight, 1),
-                        'skipped': False,
-                        'notes': f'Set {set_num + 1}'
-                    })
-            
-            session_id += 1
-    
-    # Ajouter quelques sets d'échauffement
-    warmup_data = []
-    for i in range(0, session_id, 3):  # Échauffement toutes les 3 séances
-        warmup_data.append({
-            'session_id': i + 1,
-            'exercise': 'Bench Press',
-            'series_type': 'échauffement',
-            'reps': 15,
-            'weight_kg': 40,
-            'skipped': False,
-            'notes': 'Échauffement'
-        })
-    
-    data.extend(warmup_data)
-    
-    return pd.DataFrame(data)
+    return training_df
 
 
 def create_sessions_data(num_sessions):
-    """Crée les données de séances."""
-    sessions = []
-    start_date = datetime(2023, 1, 1)
+    """
+    Crée les données de séances de façon déterministe.
     
-    for i in range(num_sessions):
-        # 2 séances par semaine (lundi et jeudi)
-        week = i // 2
-        session_in_week = i % 2
-        
-        if session_in_week == 0:
-            # Lundi
-            session_date = start_date + timedelta(weeks=week)
-        else:
-            # Jeudi
-            session_date = start_date + timedelta(weeks=week, days=3)
-        
-        sessions.append({
-            'id': i + 1,
-            'date': session_date.date(),
-            'training_name': f'Session {i + 1}',
-            'notes': f'Semaine {week + 1}, Séance {session_in_week + 1}'
-        })
+    Note: Cette fonction est maintenant un wrapper qui utilise
+    le générateur déterministe.
+    """
+    # Créer un dataset temporaire pour obtenir les sessions
+    _, sessions_df = create_demo_dataset(seed=42)
     
-    return pd.DataFrame(sessions)
+    # Retourner seulement le nombre de sessions demandé
+    return sessions_df.head(num_sessions)
 
 
 def demo_volume_calculations():

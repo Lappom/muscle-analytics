@@ -13,6 +13,8 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Union
 import warnings
+import logging
+from functools import lru_cache
 
 
 class OneRMCalculator:
@@ -22,14 +24,48 @@ class OneRMCalculator:
     BRZYCKI_MAX_REPS = 37  # Limite mathématique où 1.0278 - 0.0278 * reps = 0
     LANDER_MAX_REPS = 38   # Limite mathématique où 101.3 - 2.67123 * reps = 0
     
-    def __init__(self):
-        """Initialise le calculateur de 1RM."""
+    def __init__(self, enable_warnings: bool = True):
+        """
+        Initialise le calculateur de 1RM.
+        
+        Args:
+            enable_warnings: Active ou désactive les avertissements pour les limites de formules
+        """
         self.formulas = {
             'epley': self._epley_formula,
             'brzycki': self._brzycki_formula,
             'lander': self._lander_formula,
             'oconner': self._oconner_formula
         }
+        self.enable_warnings = enable_warnings
+        self.logger = logging.getLogger(__name__)
+        
+        # Cache pour éviter les avertissements répétés
+        self._warned_formulas = set()
+    
+    def _log_formula_fallback(self, formula_name: str, reps: Union[int, float], 
+                             reason: str = "limite de répétitions dépassée"):
+        """
+        Log un avertissement pour le fallback de formule de manière contrôlée.
+        
+        Args:
+            formula_name: Nom de la formule originale
+            reps: Nombre de répétitions problématique
+            reason: Raison du fallback
+        """
+        warning_key = f"{formula_name}_{reason}"
+        
+        if self.enable_warnings and warning_key not in self._warned_formulas:
+            self.logger.warning(
+                f"Formule {formula_name}: {reason} (reps={reps}), "
+                f"utilisation d'Epley comme fallback"
+            )
+            self._warned_formulas.add(warning_key)
+        elif self.enable_warnings:
+            # Log seulement en debug pour éviter le spam
+            self.logger.debug(
+                f"Formule {formula_name}: fallback vers Epley (reps={reps})"
+            )
     
     def _epley_formula(self, weight: float, reps: Union[int, float]) -> float:
         """
@@ -60,11 +96,12 @@ class OneRMCalculator:
         if reps <= 0:
             return weight
         if reps >= self.BRZYCKI_MAX_REPS:  # Éviter division par zéro ou valeurs négatives
-            warnings.warn(f"Nombre de reps trop élevé ({reps}) pour Brzycki, utilisation d'Epley")
+            self._log_formula_fallback('brzycki', reps, 'nombre de répétitions trop élevé')
             return self._epley_formula(weight, reps)
         
         denominator = 1.0278 - 0.0278 * reps
         if denominator <= 0:
+            self._log_formula_fallback('brzycki', reps, 'dénominateur négatif ou nul')
             return self._epley_formula(weight, reps)
         
         return weight / denominator
@@ -83,10 +120,12 @@ class OneRMCalculator:
         if reps <= 0:
             return weight
         if reps >= self.LANDER_MAX_REPS:  # Éviter valeurs négatives
+            self._log_formula_fallback('lander', reps, 'nombre de répétitions trop élevé')
             return self._epley_formula(weight, reps)
         
         denominator = 101.3 - 2.67123 * reps
         if denominator <= 0:
+            self._log_formula_fallback('lander', reps, 'dénominateur négatif ou nul')
             return self._epley_formula(weight, reps)
         
         return (100 * weight) / denominator

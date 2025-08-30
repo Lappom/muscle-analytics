@@ -109,6 +109,11 @@ class TestOneRMCalculator:
         expected = 100 * (1 + 1/30)  # ≈ 103.33
         assert abs(result - expected) < 0.01
         
+        # Test avec 2 reps (devrait appliquer la formule)
+        result = self.one_rm_calc.calculate_1rm(100, 2, 'epley')
+        expected = 100 * (1 + 2/30)  # ≈ 106.67
+        assert abs(result - expected) < 0.01
+        
         # Test avec 0 rep (devrait retourner le poids directement)
         result = self.one_rm_calc.calculate_1rm(100, 0, 'epley')
         assert result == 100
@@ -128,6 +133,27 @@ class TestOneRMCalculator:
         # Valeurs NaN
         assert pd.isna(self.one_rm_calc.calculate_1rm(np.nan, 5, 'epley'))
         assert pd.isna(self.one_rm_calc.calculate_1rm(100, np.nan, 'epley'))
+    
+    def test_formula_limits_and_warnings(self):
+        """Test limites des formules et système d'avertissements."""
+        import logging
+        
+        # Créer un calculateur avec warnings activés
+        calc_with_warnings = OneRMCalculator(enable_warnings=True)
+        
+        # Test avec un nombre de reps élevé pour Brzycki (devrait utiliser Epley)
+        result_brzycki = calc_with_warnings.calculate_1rm(100, 40, 'brzycki')
+        expected_epley = calc_with_warnings.calculate_1rm(100, 40, 'epley')
+        assert result_brzycki == expected_epley
+        
+        # Test avec un nombre de reps élevé pour Lander
+        result_lander = calc_with_warnings.calculate_1rm(100, 40, 'lander')
+        assert result_lander == expected_epley
+        
+        # Créer un calculateur avec warnings désactivés
+        calc_no_warnings = OneRMCalculator(enable_warnings=False)
+        result_no_warn = calc_no_warnings.calculate_1rm(100, 40, 'brzycki')
+        assert result_no_warn == expected_epley
     
     def test_calculate_all_formulas(self):
         """Test calcul avec toutes les formules."""
