@@ -3,6 +3,11 @@ Tests d'intégration pour l'ETL et la base de données.
 
 Ce module teste les fonctionnalités complètes d'importation et de traitement des données,
 avec une configuration de base de données sécurisée.
+
+Configuration d'environnement:
+- La fixture 'test_environment' configure automatiquement l'environnement de test
+- Utilisez 'get_safe_test_config()' dans setUp() pour obtenir la configuration DB
+- Les variables d'environnement sont standardisées pour éviter les conflits
 """
 
 import unittest
@@ -18,8 +23,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Configuration d'environnement de test sécurisée
-from test_env_config import ensure_test_environment, get_safe_test_config
-ensure_test_environment()
+from .test_env_config import get_safe_test_config
 
 from src.database import DatabaseManager, DatabaseError, get_database_config, DatabaseEnvironment
 from src.etl.import_scripts import ETLImporter
@@ -32,6 +36,7 @@ class TestDatabaseManager(unittest.TestCase):
     def setUp(self):
         """Configuration des tests"""
         # Utilisation de la configuration sécurisée
+        # Note: L'environnement de test est configuré automatiquement via la fixture 'test_environment'
         db_config = get_safe_test_config()
         self.db_manager = DatabaseManager(**db_config)
     
@@ -363,6 +368,31 @@ class TestDataValidation(unittest.TestCase):
         self.assertEqual(quality['total_rows'], 0)
         self.assertEqual(quality['valid_sets'], 0)
         self.assertEqual(quality['quality_percentage'], 0.0)
+
+
+# =============================================================================
+# EXEMPLE D'UTILISATION AVEC PYTEST MODERNE (RECOMMANDÉ)
+# =============================================================================
+
+def test_database_manager_with_fixture(safe_test_config):
+    """
+    Exemple de test utilisant la fixture pytest moderne.
+    
+    Cette approche est recommandée pour les nouveaux tests car elle:
+    - Évite les appels directs à ensure_test_environment()
+    - Utilise l'injection de dépendance pytest
+    - Simplifie la gestion de la configuration
+    
+    Args:
+        safe_test_config: Fixture qui retourne la configuration de test sécurisée
+    """
+    # Configuration automatique via la fixture
+    db_manager = DatabaseManager(**safe_test_config)
+    
+    # Tests
+    assert db_manager.connection_params.get('host') is not None
+    assert db_manager.connection_params.get('database') is not None
+    assert db_manager.connection_params.get('user') == 'test_user'  # Standardisé
 
 
 def run_tests():

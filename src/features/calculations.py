@@ -26,21 +26,29 @@ class FeatureCalculator:
     DEFAULT_SECONDS_PER_REP = 4  # Temps moyen par répétition en secondes
     DEFAULT_SET_REST_TIME = 60   # Temps de récupération moyen entre séries
     
-    def __init__(self, seconds_per_rep: Optional[float] = None, set_rest_time: Optional[float] = None):
+    def __init__(self, seconds_per_rep: float = DEFAULT_SECONDS_PER_REP, 
+                 set_rest_time: float = DEFAULT_SET_REST_TIME):
         """
         Initialise les calculateurs spécialisés.
         
         Args:
             seconds_per_rep: Temps moyen par répétition en secondes (défaut: 4)
             set_rest_time: Temps de récupération moyen entre séries en secondes (défaut: 60)
+        
+        Examples:
+            # Utilisation avec valeurs par défaut
+            calc = FeatureCalculator()
+            
+            # Personnalisation pour un entraînement plus rapide
+            calc_fast = FeatureCalculator(seconds_per_rep=3.0, set_rest_time=45.0)
         """
         self.volume_calculator = VolumeCalculator()
         self.one_rm_calculator = OneRMCalculator()
         self.progression_analyzer = ProgressionAnalyzer()
         
         # Configuration des paramètres de timing
-        self.seconds_per_rep = seconds_per_rep if seconds_per_rep is not None else self.DEFAULT_SECONDS_PER_REP
-        self.set_rest_time = set_rest_time if set_rest_time is not None else self.DEFAULT_SET_REST_TIME
+        self.seconds_per_rep = seconds_per_rep
+        self.set_rest_time = set_rest_time
     
     def calculate_estimated_set_duration(self, reps: Union[int, float]) -> float:
         """

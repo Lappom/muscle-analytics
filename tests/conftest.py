@@ -10,8 +10,7 @@ from fastapi.testclient import TestClient
 from unittest.mock import Mock
 
 # Configuration d'environnement de test sécurisée
-from .test_env_config import ensure_test_environment
-ensure_test_environment()
+from .test_env_config import ensure_test_environment, get_safe_test_config
 
 from src.api.main import app
 from src.api.models import Session, Set, Exercise, VolumeStats, OneRMStats, ProgressionStats, DashboardData
@@ -110,6 +109,24 @@ class TestDataFactory:
 # =============================================================================
 # FIXTURES GLOBALES
 # =============================================================================
+
+@pytest.fixture(scope="session", autouse=True)
+def test_environment():
+    """
+    Configure l'environnement de test une seule fois par session de test.
+    Cette fixture s'exécute automatiquement avant tous les tests.
+    """
+    ensure_test_environment()
+
+
+@pytest.fixture
+def safe_test_config():
+    """
+    Fixture pour obtenir une configuration de test sécurisée.
+    Utilisez cette fixture dans vos tests qui ont besoin de la config DB.
+    """
+    return get_safe_test_config()
+
 
 @pytest.fixture
 def client():

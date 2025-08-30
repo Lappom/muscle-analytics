@@ -21,7 +21,7 @@ try:
         DatabaseConfig, DatabaseEnvironment, 
         get_db_config, setup_database_environment
     )
-    from etl.database import DatabaseManager
+    from database import DatabaseManager
 except ImportError as e:
     print(f"❌ Erreur d'import: {e}")
     print("💡 Assurez-vous que le package muscle-analytics est installé:")
@@ -145,7 +145,7 @@ def demo():
     print("""
 # Utilisation simple
 from src.config.database import get_db_config, DatabaseEnvironment
-from src.etl.database import DatabaseManager
+from src.database import DatabaseManager
 
 # Configuration automatique
 config = get_db_config()
