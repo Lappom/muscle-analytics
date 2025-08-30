@@ -9,6 +9,10 @@ from pathlib import Path
 import tempfile
 import os
 import sys
+import logging
+
+# Configuration du logger
+logger = logging.getLogger(__name__)
 
 # Ajout du chemin pour les imports
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
@@ -70,11 +74,64 @@ class TestETLImporter(unittest.TestCase):
     
     def setUp(self):
         """Configuration des tests"""
-        # Mock du database manager pour éviter les dépendances
-        self.importer = ETLImporter()
+        # Créer un importer avec un mock du database manager si DB non disponible
+        try:
+            db_manager = DatabaseManager(
+                host="localhost",
+                database="muscle_analytics_test",
+                user="postgres",
+                password="password"
+            )
+            
+            # Tester la connexion
+            if db_manager.test_connection():
+                self.importer = ETLImporter(db_manager)
+                self.has_database = True
+            else:
+                # Créer un mock simple pour les tests
+                self.importer = ETLImporter()
+                self.has_database = False
+                logger.warning("Base de données non disponible, utilisation de mocks pour les tests")
+        except Exception:
+            self.importer = ETLImporter()
+            self.has_database = False
+            logger.warning("Base de données non disponible, utilisation de mocks pour les tests")
     
     def test_filter_new_data(self):
         """Test du filtrage des nouvelles données"""
+        from datetime import date, timedelta
+        
+        # Utilisation de dates récentes pour le test
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+        two_days_ago = today - timedelta(days=2)
+        
+        # Création d'un DataFrame de test avec des dates récentes
+        test_data = pd.DataFrame({
+            'date': [two_days_ago.strftime('%Y-%m-%d'), 
+                    yesterday.strftime('%Y-%m-%d'), 
+                    today.strftime('%Y-%m-%d')],
+            'exercise': ['Test1', 'Test2', 'Test3'],
+            'reps': [10, 12, 8],
+            'weight_kg': [50.0, 60.0, 70.0]
+        })
+        
+        # Définir qu'une des dates existe déjà
+        existing_dates = {two_days_ago}
+        
+        # Le filtrage doit garder seulement les nouvelles dates récentes
+        filtered = self.importer._filter_new_data(test_data, existing_dates, 30)
+        
+        self.assertEqual(len(filtered), 2)  # 2 nouvelles dates
+        self.assertNotIn(two_days_ago.strftime('%Y-%m-%d'), filtered['date'].values)
+    
+    def test_filter_new_data_with_reference_date(self):
+        """Test du filtrage avec date de référence spécifique"""
+        from datetime import date
+        
+        # Test avec date de référence spécifique
+        reference_date = date(2024, 8, 31)
+        
         # Création d'un DataFrame de test
         test_data = pd.DataFrame({
             'date': ['2024-08-29', '2024-08-30', '2024-08-31'],
@@ -85,11 +142,15 @@ class TestETLImporter(unittest.TestCase):
         
         existing_dates = {date(2024, 8, 29)}
         
-        # Le filtrage doit garder seulement les nouvelles dates
-        filtered = self.importer._filter_new_data(test_data, existing_dates, 30)
-        
-        self.assertEqual(len(filtered), 2)  # 2 nouvelles dates
-        self.assertNotIn('2024-08-29', filtered['date'].values)
+        # Test avec la méthode de test qui accepte une date de référence
+        if hasattr(self.importer, '_filter_new_data_for_testing'):
+            filtered = self.importer._filter_new_data_for_testing(
+                test_data, existing_dates, 30, reference_date
+            )
+            self.assertEqual(len(filtered), 2)  # 2 nouvelles dates
+            self.assertNotIn('2024-08-29', filtered['date'].values)
+        else:
+            self.skipTest("Méthode de test non disponible")
     
     def test_generate_import_report(self):
         """Test de génération de rapport"""
@@ -266,7 +327,7 @@ def run_tests():
         db_manager = DatabaseManager()
         if db_manager.test_connection():
             test_suite.addTest(unittest.makeSuite(TestDatabaseManager))
-    except:
+    except Exception:
         print("⚠️  Tests de base de données ignorés (DB non disponible)")
     
     # Exécution des tests

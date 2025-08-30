@@ -90,8 +90,11 @@ class DatabaseManager:
                     result = cursor.fetchone()
                     logger.info("Connexion à la base de données réussie")
                     return result[0] == 1
-        except DatabaseError:
-            logger.error("Échec de la connexion à la base de données")
+        except DatabaseError as e:
+            logger.error(f"Échec de la connexion à la base de données: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Erreur inattendue lors du test de connexion: {e}")
             return False
     
     def insert_session(self, date: date, start_time: Optional[str] = None, 

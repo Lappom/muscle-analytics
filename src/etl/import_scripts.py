@@ -366,6 +366,36 @@ class ETLImporter:
         
         return new_data
     
+    def _filter_new_data_for_testing(self, df: pd.DataFrame, existing_dates: set,
+                                    days_threshold: int, reference_date: Optional[date] = None) -> pd.DataFrame:
+        """
+        Version de _filter_new_data pour les tests avec date de référence configurable.
+        
+        Args:
+            df: DataFrame à filtrer
+            existing_dates: Dates déjà existantes
+            days_threshold: Seuil en jours
+            reference_date: Date de référence (par défaut: aujourd'hui)
+        """
+        if df.empty:
+            return df
+        
+        # Convertir les dates du DataFrame
+        df_copy = df.copy()
+        df_copy['date_parsed'] = pd.to_datetime(df_copy['date']).dt.date
+        
+        # Utiliser la date de référence fournie ou la date actuelle
+        cutoff_date = reference_date or datetime.now().date()
+        from datetime import timedelta
+        
+        # Filtrer les données récentes et non existantes
+        mask = (df_copy['date_parsed'] >= (cutoff_date - timedelta(days=days_threshold))) & \
+               (~df_copy['date_parsed'].isin(existing_dates))
+        
+        new_data = df_copy[mask].drop('date_parsed', axis=1)
+        
+        return new_data
+    
     def generate_import_report(self, results: Dict) -> str:
         """
         Génère un rapport d'import formaté.

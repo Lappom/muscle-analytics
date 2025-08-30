@@ -75,7 +75,7 @@ def test_pipeline_processing():
     logger.info("=== TEST DU PIPELINE DE TRAITEMENT ===")
     
     pipeline = ETLPipeline()
-    examples_dir = Path(__file__).parent  # Correction du chemin
+    examples_dir = Path(__file__).parent
     
     # Test du fichier CSV
     csv_file = examples_dir / 'sample_data.csv'
@@ -125,7 +125,7 @@ def test_database_import():
         password="devpass"
     )
     importer = ETLImporter(db_manager)
-    examples_dir = Path(__file__).parent  # Correction du chemin
+    examples_dir = Path(__file__).parent
     
     # Test d'import d'un fichier
     csv_file = examples_dir / 'sample_data.csv'
@@ -179,7 +179,7 @@ def test_incremental_import():
         password="devpass"
     )
     importer = ETLImporter(db_manager)
-    examples_dir = Path(__file__).parent  # Correction du chemin
+    examples_dir = Path(__file__).parent
     
     if examples_dir.exists():
         logger.info(f"Import incrémental du répertoire: {examples_dir}")
@@ -226,7 +226,7 @@ def generate_demo_report():
                 logger.info(f"   - Période couverte: {stats['date_range']['start']} à {stats['date_range']['end']}")
         
         # Test de génération de rapport de synthèse
-        examples_dir = Path(__file__).parent  # Correction du chemin
+        examples_dir = Path(__file__).parent
         csv_file = examples_dir / 'sample_data.csv'
         
         if csv_file.exists():
