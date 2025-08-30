@@ -18,6 +18,10 @@ import warnings
 class OneRMCalculator:
     """Calculateur de 1RM estimé avec différentes formules."""
     
+    # Constantes pour les limites des formules
+    BRZYCKI_MAX_REPS = 37  # Limite mathématique où 1.0278 - 0.0278 * reps = 0
+    LANDER_MAX_REPS = 38   # Limite mathématique où 101.3 - 2.67123 * reps = 0
+    
     def __init__(self):
         """Initialise le calculateur de 1RM."""
         self.formulas = {
@@ -55,7 +59,7 @@ class OneRMCalculator:
         """
         if reps <= 0:
             return weight
-        if reps >= 37:  # Éviter division par zéro ou valeurs négatives
+        if reps >= self.BRZYCKI_MAX_REPS:  # Éviter division par zéro ou valeurs négatives
             warnings.warn(f"Nombre de reps trop élevé ({reps}) pour Brzycki, utilisation d'Epley")
             return self._epley_formula(weight, reps)
         
@@ -78,7 +82,7 @@ class OneRMCalculator:
         """
         if reps <= 0:
             return weight
-        if reps >= 38:  # Éviter valeurs négatives
+        if reps >= self.LANDER_MAX_REPS:  # Éviter valeurs négatives
             return self._epley_formula(weight, reps)
         
         denominator = 101.3 - 2.67123 * reps

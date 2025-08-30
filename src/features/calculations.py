@@ -21,6 +21,10 @@ from .progression import ProgressionAnalyzer
 class FeatureCalculator:
     """Calculateur principal pour toutes les features avancées."""
     
+    # Constantes pour estimation de durée des sets
+    SECONDS_PER_REP = 2.5      # Temps estimé par répétition (secondes)
+    SET_REST_TIME = 60         # Temps de repos estimé entre les sets (secondes)
+    
     def __init__(self):
         """Initialise le calculateur de features."""
         self.volume_calc = VolumeCalculator()
@@ -92,8 +96,8 @@ class FeatureCalculator:
         )
         
         # Densité du set (volume / temps estimé)
-        # Estimation : 2-3 secondes par rep + repos
-        df['estimated_set_duration'] = df['reps'] * 2.5 + 60  # secondes
+        # Estimation basée sur temps par répétition + temps de repos
+        df['estimated_set_duration'] = df['reps'] * self.SECONDS_PER_REP + self.SET_REST_TIME  # secondes
         df['volume_density'] = np.where(
             df['estimated_set_duration'] > 0,
             df['volume'] / df['estimated_set_duration'] * 60,  # volume par minute

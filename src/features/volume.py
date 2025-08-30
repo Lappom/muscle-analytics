@@ -17,9 +17,20 @@ from datetime import datetime, timedelta
 class VolumeCalculator:
     """Calculateur de volumes d'entraînement."""
     
-    def __init__(self):
-        """Initialise le calculateur de volume."""
-        pass
+    def __init__(self, week_start_day: str = 'MON'):
+        """
+        Initialise le calculateur de volume.
+        
+        Args:
+            week_start_day: Jour de début de semaine ('MON', 'SUN', 'TUE', etc.)
+                          Par défaut 'MON' (lundi)
+        """
+        # Valider le jour de début de semaine
+        valid_days = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']
+        if week_start_day not in valid_days:
+            raise ValueError(f"week_start_day doit être l'un de: {valid_days}")
+        
+        self.week_start_day = week_start_day
     
     def calculate_set_volume(self, df: pd.DataFrame) -> pd.DataFrame:
         """
@@ -97,13 +108,15 @@ class VolumeCalculator:
         return session_volumes
     
     def calculate_weekly_volume(self, df: pd.DataFrame, 
-                              sessions_df: Optional[pd.DataFrame] = None) -> pd.DataFrame:
+                              sessions_df: Optional[pd.DataFrame] = None,
+                              week_start_day: Optional[str] = None) -> pd.DataFrame:
         """
         Calcule le volume hebdomadaire.
         
         Args:
             df: DataFrame avec volumes calculés
             sessions_df: DataFrame des séances avec dates (optionnel)
+            week_start_day: Jour de début de semaine (optionnel, utilise la config de l'instance par défaut)
             
         Returns:
             DataFrame avec volumes hebdomadaires
@@ -123,8 +136,11 @@ class VolumeCalculator:
             df_with_dates = df.copy()
             df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
         
-        # Calculer la semaine (lundi = début de semaine)
-        df_with_dates['week'] = df_with_dates['date'].dt.to_period('W-MON')
+        # Déterminer le jour de début de semaine à utiliser
+        start_day = week_start_day if week_start_day is not None else self.week_start_day
+        
+        # Calculer la semaine avec le jour de début configuré
+        df_with_dates['week'] = df_with_dates['date'].dt.to_period(f'W-{start_day}')
         
         # Filtrer les sets principaux
         mask = (df_with_dates['skipped'] != True) & (df_with_dates['series_type'] == 'principale')

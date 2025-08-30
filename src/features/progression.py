@@ -101,14 +101,14 @@ class ProgressionAnalyzer:
             if len(session_volumes) >= self.min_sessions_for_trend:
                 x = np.arange(len(session_volumes))
                 try:
-                    # Utiliser stats.linregress avec accès sûr aux attributs
+                    # Utiliser stats.linregress avec accès direct aux attributs
                     linregress_result = stats.linregress(x, session_volumes['volume'])
                     
-                    # Accès sûr aux attributs pour compatibilité avec différentes versions
-                    session_volumes['trend_slope'] = getattr(linregress_result, 'slope', 0.0)
-                    rvalue = getattr(linregress_result, 'rvalue', 0.0)
+                    # Accès direct aux attributs du résultat linregress
+                    session_volumes['trend_slope'] = linregress_result.slope  # type: ignore
+                    rvalue = linregress_result.rvalue  # type: ignore
                     session_volumes['trend_r_squared'] = rvalue * rvalue
-                    session_volumes['trend_p_value'] = getattr(linregress_result, 'pvalue', 1.0)
+                    session_volumes['trend_p_value'] = linregress_result.pvalue  # type: ignore
                 except (ValueError, TypeError):
                     # En cas d'erreur, valeurs par défaut
                     session_volumes['trend_slope'] = 0.0
@@ -265,8 +265,12 @@ class ProgressionAnalyzer:
                         if valid_mask.sum() > 1:  # Au moins 2 points valides
                             valid_x = x[valid_mask]
                             valid_y = window_data[valid_mask]
-                            
-                            slope, _, r_squared, _, _ = stats.linregress(valid_x, valid_y)
+
+                            linregress_result = stats.linregress(valid_x, valid_y)
+                            # Accès direct aux attributs du résultat linregress
+                            slope = linregress_result.slope  # type: ignore
+                            rvalue = linregress_result.rvalue  # type: ignore
+                            r_squared = rvalue * rvalue
                             
                             # Plateau si faible variation ET tendance plate
                             threshold_cv = self.plateau_threshold  # 0.02 par défaut
