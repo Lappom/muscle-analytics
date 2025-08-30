@@ -30,6 +30,7 @@ dependencies = [
     "uvicorn[standard]>=0.20.0",
     "python-dateutil>=2.8.0",
     "lxml>=4.9.0",
+    "scipy>=1.10.0",
 ]
 
 [project.optional-dependencies]
