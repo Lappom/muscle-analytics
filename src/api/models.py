@@ -14,6 +14,8 @@ class SessionBase(BaseModel):
     start_time: Optional[str] = None
     training_name: Optional[str] = None
     notes: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Session(SessionBase):
@@ -32,6 +34,8 @@ class SetBase(BaseModel):
     weight_kg: Optional[Decimal] = None
     notes: Optional[str] = None
     skipped: bool = False
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class Set(SetBase):
@@ -63,6 +67,8 @@ class VolumeStats(BaseModel):
     avg_volume_per_session: float
     weekly_volume: Optional[float] = None
     monthly_volume: Optional[float] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class OneRMStats(BaseModel):
@@ -78,6 +84,8 @@ class OneRMStats(BaseModel):
     current_1rm_lander: Optional[float] = None
     current_1rm_oconner: Optional[float] = None
     current_1rm_average: Optional[float] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class ProgressionStats(BaseModel):
@@ -89,6 +97,8 @@ class ProgressionStats(BaseModel):
     volume_trend_30d: Optional[float] = None
     plateau_detected: bool = False
     days_since_last_pr: Optional[int] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SessionWithSets(Session):
@@ -102,6 +112,8 @@ class ExerciseAnalytics(BaseModel):
     volume_stats: VolumeStats
     one_rm_stats: OneRMStats
     progression_stats: ProgressionStats
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DashboardData(BaseModel):
@@ -113,6 +125,8 @@ class DashboardData(BaseModel):
     recent_sessions: List[Session]
     top_exercises_by_volume: List[VolumeStats]
     exercises_with_plateau: List[str]
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class DateRange(BaseModel):

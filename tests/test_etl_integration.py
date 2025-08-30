@@ -17,7 +17,7 @@ from .test_env_config import ensure_test_environment, get_safe_test_config
 ensure_test_environment()
 
 from src.database import DatabaseManager, DatabaseError, get_database_config, DatabaseEnvironment
-from src.etl.pipeline import ETLImporter
+from src.etl.import_scripts import ETLImporter
 
 from pathlib import Path
 import sys

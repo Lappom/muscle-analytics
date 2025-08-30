@@ -7,6 +7,7 @@ un ensemble complet de features d'entraînement.
 
 import pandas as pd
 import numpy as np
+import logging
 from typing import Dict, List, Optional, Union, Any
 from datetime import datetime
 
@@ -14,19 +15,32 @@ from .volume import VolumeCalculator
 from .one_rm import OneRMCalculator
 from .progression import ProgressionAnalyzer
 
+# Configuration du logger
+logger = logging.getLogger(__name__)
+
 
 class FeatureCalculator:
     """Calculateur principal pour toutes les features avancées."""
     
-    # Constantes pour l'estimation de durée
-    SECONDS_PER_REP = 4  # Temps moyen par répétition en secondes
-    SET_REST_TIME = 60   # Temps de récupération moyen entre séries
+    # Valeurs par défaut pour l'estimation de durée
+    DEFAULT_SECONDS_PER_REP = 4  # Temps moyen par répétition en secondes
+    DEFAULT_SET_REST_TIME = 60   # Temps de récupération moyen entre séries
     
-    def __init__(self):
-        """Initialise les calculateurs spécialisés."""
+    def __init__(self, seconds_per_rep: Optional[float] = None, set_rest_time: Optional[float] = None):
+        """
+        Initialise les calculateurs spécialisés.
+        
+        Args:
+            seconds_per_rep: Temps moyen par répétition en secondes (défaut: 4)
+            set_rest_time: Temps de récupération moyen entre séries en secondes (défaut: 60)
+        """
         self.volume_calculator = VolumeCalculator()
         self.one_rm_calculator = OneRMCalculator()
         self.progression_analyzer = ProgressionAnalyzer()
+        
+        # Configuration des paramètres de timing
+        self.seconds_per_rep = seconds_per_rep if seconds_per_rep is not None else self.DEFAULT_SECONDS_PER_REP
+        self.set_rest_time = set_rest_time if set_rest_time is not None else self.DEFAULT_SET_REST_TIME
     
     def calculate_estimated_set_duration(self, reps: Union[int, float]) -> float:
         """
@@ -41,7 +55,7 @@ class FeatureCalculator:
         if pd.isna(reps) or reps <= 0:
             return np.nan
         
-        return reps * self.SECONDS_PER_REP + self.SET_REST_TIME
+        return reps * self.seconds_per_rep + self.set_rest_time
     
     def calculate_all_features(self, df: pd.DataFrame,
                              sessions_df: Optional[pd.DataFrame] = None,
@@ -70,7 +84,7 @@ class FeatureCalculator:
         try:
             result_df = self.volume_calculator.calculate_set_volume(result_df)
         except Exception as e:
-            print(f"Erreur lors du calcul de volume: {e}")
+            logger.error(f"Erreur lors du calcul de volume: {e}", exc_info=True)
         
         # === CALCULS 1RM ===
         if include_1rm:
@@ -79,9 +93,7 @@ class FeatureCalculator:
                     result_df, formulas=one_rm_formulas
                 )
             except Exception as e:
-                print(f"Erreur lors du calcul 1RM: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.error(f"Erreur lors du calcul 1RM: {e}", exc_info=True)
         
         # === CALCULS DE PROGRESSION ===
         # Note: Les calculs de progression retournent des DataFrames agrégés
@@ -100,7 +112,7 @@ class FeatureCalculator:
                 plateau_data = self.progression_analyzer.detect_plateaus(result_df, 'volume')
                 progression_data['plateau_data'] = plateau_data
         except Exception as e:
-            print(f"Erreur lors du calcul de progression: {e}")
+            logger.error(f"Erreur lors du calcul de progression: {e}", exc_info=True)
         
         # === FEATURES DÉRIVÉES ===
         result_df = self._add_derived_features(result_df)

@@ -81,8 +81,7 @@ async def get_session_details(
 ):
     """Récupère les détails d'une session avec ses sets"""
     try:
-        sessions = db_service.get_sessions()
-        session = next((s for s in sessions if s.id == session_id), None)
+        session = db_service.get_session_by_id(session_id)
         
         if not session:
             raise HTTPException(status_code=404, detail=f"Session avec ID {session_id} non trouvée")

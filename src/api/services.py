@@ -65,6 +65,33 @@ class DatabaseService:
             ]
         except Exception as e:
             self._handle_database_error("récupération des sessions", e)
+            return []  # Cette ligne ne sera jamais atteinte car _handle_database_error lève une exception
+    
+    def get_session_by_id(self, session_id: int) -> Optional[Session]:
+        """Récupère une session spécifique par son ID"""
+        query = """
+        SELECT id, date, start_time, training_name, notes, created_at
+        FROM sessions
+        WHERE id = %s
+        """
+        
+        try:
+            results = self.db.execute_query(query, (session_id,))
+            if not results:
+                return None
+            
+            row = results[0]
+            return Session(
+                id=row[0],
+                date=row[1],
+                start_time=str(row[2]) if row[2] else None,
+                training_name=row[3],
+                notes=row[4],
+                created_at=row[5]
+            )
+        except Exception as e:
+            self._handle_database_error("récupération de la session", e)
+            return None  # Cette ligne ne sera jamais atteinte car _handle_database_error lève une exception
         
     def _handle_database_error(self, operation: str, error: Exception) -> None:
         """
