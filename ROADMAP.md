@@ -38,7 +38,7 @@ Mise en place d'un repository propre avec infrastructure de développement et co
 
 ---
 
-## 🔄 Phase 1 — Ingestion & ETL baseline (1-2 semaines)
+## ✅ Phase 1 — Ingestion & ETL baseline (TERMINÉE)
 
 ### Objectif
 
@@ -46,28 +46,32 @@ Parser fiable pour CSV/XML → DB avec normalisation des données et tests.
 
 ### Tâches détaillées
 
--   [x] Implémenter parser CSV robuste
+-   [x] Implémenter parser CSV robuste (`src/etl/csv_parser.py`)
     -   Gestion des virgules et espaces insécables
     -   Validation des données d'entrée
--   [x] Implémenter parser XML (structure fournie)
--   [x] Normalisation des données
+-   [x] Implémenter parser XML (`src/etl/xml_parser.py`)
+-   [x] Normalisation des données (`src/etl/normalization.py`)
     -   Dates : DD/MM/YYYY → ISO 8601
     -   Poids : virgules → points, suppression des unités
     -   Répétitions : conversion en entiers
 -   [x] Heuristiques pour détecter séries d'échauffement vs principales
--   [x] Mapping initial des exercices (table `exercises` simple)
--   [ ] Scripts ETL pour insertion en DB et import incrémental
--   [x] Tests unitaires pour parse + conversions
+-   [x] Mapping initial des exercices (table `exercises` dans PostgreSQL)
+-   [x] Scripts ETL pour insertion en DB (`src/etl/import_scripts.py`)
+-   [x] Pipeline ETL complet (`src/etl/pipeline.py`)
+-   [x] Tests unitaires pour parse + conversions (`tests/`)
+-   [x] Base de données PostgreSQL avec schéma complet (`docker/init.sql`)
 
 ### Critères d'acceptation
 
 -   [x] Import d'un fichier CSV et XML d'exemple avec résultat correct dans DB
 -   [x] Tests unitaires couvrant les cas edge (valeurs nulles, formats différents)
 -   [x] Gestion des erreurs et logging approprié
+-   [x] Infrastructure Docker fonctionnelle (PostgreSQL + API FastAPI)
 
 ### Livrable
 
 -   [x] Pipeline ETL fonctionnel avec tests et documentation.
+-   [x] Base de données PostgreSQL configurée et accessible via DBeaver.
 
 ---
 
@@ -252,12 +256,25 @@ Version déployée et documentée en production.
 
 ## 🎯 Métriques de succès
 
--   **Phase 1-2 :** Pipeline ETL stable avec données de test
+### ✅ Bilan Phase 1 (Terminée)
+- **Pipeline ETL stable** : Parsers CSV/XML robustes avec gestion d'erreurs
+- **Base de données PostgreSQL** : Schéma complet et fonctionnel
+- **Tests unitaires** : Couverture complète des cas edge
+- **Infrastructure Docker** : Déploiement local automatisé
+- **Qualité code** : Linting, formatage et bonnes pratiques
+
+### 🎯 Objectifs Phase 2 (En cours)
+- **Notebooks EDA** : Analyse exploratoire des données dans `notebooks/`
+- **Features ML** : Calculs 1RM, volume, indicateurs de progression
+- **API endpoints** : FastAPI pour exposer les données
+- **Dashboard MVP** : Interface utilisateur basique (Streamlit recommandé)
+
+### 🔮 Phases suivantes
 -   **Phase 3 :** Modèles ML avec métriques de performance
 -   **Phase 4-5 :** Application utilisable en production
 -   **Phase 6 :** Fonctionnalités avancées validées
 
 ---
 
-_Dernière mise à jour : $(date)_  
-_Version : 2.0_
+_Dernière mise à jour : 30 août 2025_  
+_Version : 2.1 - Phase 1 terminée, Phase 2 en cours_

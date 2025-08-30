@@ -6,7 +6,7 @@ Orchestrateur qui combine parsing et normalisation.
 
 import pandas as pd
 from pathlib import Path
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Sequence, Dict, Any
 import logging
 
 from .csv_parser import CSVParser, CSVParserError
@@ -78,7 +78,7 @@ class ETLPipeline:
         except Exception as e:
             raise ETLPipelineError(f"Erreur inattendue: {str(e)}")
     
-    def process_multiple_files(self, file_paths: List[Union[str, Path]]) -> pd.DataFrame:
+    def process_multiple_files(self, file_paths: Sequence[Union[str, Path]]) -> pd.DataFrame:
         """
         Traite plusieurs fichiers et combine les résultats.
         
@@ -126,7 +126,7 @@ class ETLPipeline:
             if 'time' in df.columns:
                 time_series = pd.to_datetime(df['time'], format='%H:%M', errors='coerce').dt.time
                 for i, (date, time_val) in enumerate(zip(df['_sort_datetime'], time_series)):
-                    if pd.notna(date) and pd.notna(time_val):
+                    if pd.notna(date) and time_val is not None:
                         df.loc[i, '_sort_datetime'] = pd.Timestamp.combine(date.date(), time_val)
             
             # Tri et suppression de la colonne temporaire
@@ -136,7 +136,7 @@ class ETLPipeline:
         
         return df
     
-    def validate_data_quality(self, df: pd.DataFrame) -> dict:
+    def validate_data_quality(self, df: pd.DataFrame) -> Dict[str, Any]:
         """
         Valide la qualité des données normalisées.
         
@@ -146,17 +146,19 @@ class ETLPipeline:
         Returns:
             Dictionnaire avec métriques de qualité
         """
-        quality_metrics = {
+        quality_metrics: Dict[str, Any] = {
             'total_rows': len(df),
             'valid_sets': 0,
             'missing_dates': 0,
             'missing_exercises': 0,
             'invalid_weights': 0,
             'invalid_reps': 0,
-            'skipped_sets': 0
+            'skipped_sets': 0,
+            'quality_percentage': 0.0
         }
         
         if df.empty:
+            quality_metrics['quality_percentage'] = 0.0
             return quality_metrics
         
         # Calcul des métriques
@@ -182,7 +184,7 @@ class ETLPipeline:
         
         # Calcul du pourcentage de qualité
         if quality_metrics['total_rows'] > 0:
-            quality_metrics['quality_percentage'] = (
+            quality_metrics['quality_percentage'] = float(
                 quality_metrics['valid_sets'] / quality_metrics['total_rows'] * 100
             )
         else:
