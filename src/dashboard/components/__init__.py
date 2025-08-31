@@ -1,3 +1,3 @@
 """
-Composants du dashboard Streamlit
+Streamlit dashboard components
 """

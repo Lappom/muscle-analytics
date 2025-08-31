@@ -6,7 +6,7 @@ import os
 from typing import Dict, List
 
 # Configuration de l'API
-API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://localhost:8000")
 API_TIMEOUT = int(os.getenv("API_TIMEOUT", "30"))
 
 # Configuration du dashboard
@@ -195,7 +195,14 @@ EXPORT_CONFIG = {
 }
 
 def get_muscle_color(muscle_group: str) -> str:
-    """Retourne la couleur associée à un groupe musculaire"""
+    """Get the color code associated with a muscle group.
+
+    Args:
+        muscle_group: Name of the muscle group
+
+    Returns:
+        str: Hex color code (#RRGGBB). Returns '#95a5a6' if muscle group not found.
+    """
     return MUSCLE_GROUPS.get(muscle_group, {}).get("color", "#95a5a6")
 
 def get_exercises_for_muscle(muscle_group: str) -> List[str]:
@@ -203,22 +210,31 @@ def get_exercises_for_muscle(muscle_group: str) -> List[str]:
     return MUSCLE_GROUPS.get(muscle_group, {}).get("exercises", [])
 
 def format_value(value, format_type: str) -> str:
-    """Formate une valeur selon le type spécifié"""
+    """Formate une valeur selon le type spécifié
+    Args:
+        value: La valeur à formater
+        format_type: Le type de format ('number', 'weight', 'percentage', 'decimal', 'date_ago', ...)
+    Returns:
+        str: La valeur formatée ou 'N/A' en cas d'erreur ou de type non supporté
+    """
     if value is None:
         return "N/A"
-    
-    if format_type == "number":
-        return f"{value:,.0f}"
-    elif format_type == "weight":
-        if value > 1000:
-            return f"{value/1000:.1f}k kg"
-        return f"{value:.0f} kg"
-    elif format_type == "percentage":
-        return f"{value:.0%}"
-    elif format_type == "decimal":
-        return f"{value:.1f}"
-    elif format_type == "date_ago":
-        # Cette logique sera implémentée dans le dashboard
-        return str(value)
-    else:
-        return str(value)
+    try:
+        if format_type == "number":
+            return f"{float(value):,.0f}"
+        elif format_type == "weight":
+            value = float(value)
+            if value > 1000:
+                return f"{value/1000:.1f}k kg"
+            return f"{value:.0f} kg"
+        elif format_type == "percentage":
+            return f"{float(value):.0%}"
+        elif format_type == "decimal":
+            return f"{float(value):.1f}"
+        elif format_type == "date_ago":
+            # Cette logique sera implémentée dans le dashboard
+            return str(value)
+        else:
+            return str(value)
+    except (ValueError, TypeError):
+        return "N/A"
