@@ -135,14 +135,20 @@ class TestETLImporter(unittest.TestCase):
             
             # Vérifier que le résultat n'est pas vide
             self.assertIsNotNone(result)
-            if isinstance(result, pd.DataFrame):
+            if isinstance(result, dict):
+                # Vérifier la structure du dictionnaire de résultat
+                self.assertIn('success', result)
+                self.assertIn('file', result)
+                self.assertIn('stats', result)
+            elif isinstance(result, pd.DataFrame):
+                # Vérifier la structure du DataFrame
                 self.assertFalse(result.empty, "Le résultat ne devrait pas être vide")
                 self.assertIn('date', result.columns)
                 self.assertIn('exercise', result.columns)
                 self.assertIn('reps', result.columns)
                 self.assertIn('weight_kg', result.columns)
             else:
-                # Si c'est un autre type de résultat, vérifier qu'il n'est pas None
+                # Autre type de résultat
                 self.assertIsNotNone(result)
                 
         finally:
@@ -162,7 +168,12 @@ class TestETLImporter(unittest.TestCase):
             
             # Vérifier que le résultat est géré correctement
             self.assertIsNotNone(result)
-            if isinstance(result, pd.DataFrame):
+            if isinstance(result, dict):
+                # Vérifier la structure du dictionnaire de résultat
+                self.assertIn('success', result)
+                self.assertIn('file', result)
+                self.assertIn('stats', result)
+            elif isinstance(result, pd.DataFrame):
                 # Le DataFrame peut être vide mais doit avoir la bonne structure
                 self.assertTrue(result.empty or len(result.columns) > 0)
             else:
@@ -193,11 +204,17 @@ class TestETLImporter(unittest.TestCase):
             
             # Vérifier que le résultat n'est pas vide
             self.assertIsNotNone(result)
-            if isinstance(result, pd.DataFrame):
+            if isinstance(result, dict):
+                # Vérifier la structure du dictionnaire de résultat
+                self.assertIn('success', result)
+                self.assertIn('file', result)
+                self.assertIn('stats', result)
+            elif isinstance(result, pd.DataFrame):
                 self.assertFalse(result.empty, "Le résultat ne devrait pas être vide")
                 self.assertIn('date', result.columns)
                 self.assertIn('exercise', result.columns)
             else:
+                # Autre type de résultat
                 self.assertIsNotNone(result)
                 
         finally:
@@ -236,7 +253,11 @@ class TestETLImporter(unittest.TestCase):
         validation_result = self.importer.validate_data(valid_data)
         
         if validation_result is not None:
-            self.assertTrue(validation_result, "Les données valides devraient passer la validation")
+            self.assertIsInstance(validation_result, dict)
+            self.assertIn('valid', validation_result)
+            self.assertIn('errors', validation_result)
+            self.assertIn('warnings', validation_result)
+            self.assertTrue(validation_result['valid'], "Les données valides devraient passer la validation")
         
         # Test avec données invalides (valeurs manquantes)
         invalid_data = valid_data.copy()
@@ -245,13 +266,12 @@ class TestETLImporter(unittest.TestCase):
         
         validation_result_invalid = self.importer.validate_data(invalid_data)
         
-        # La validation peut soit échouer soit nettoyer les données
+        # Vérifier la structure du résultat de validation
         if validation_result_invalid is not None:
-            # Si la validation échoue, c'est OK
-            pass
-        else:
-            # Si la validation nettoie les données, vérifier qu'elles sont cohérentes
-            self.assertIsNotNone(validation_result_invalid)
+            self.assertIsInstance(validation_result_invalid, dict)
+            self.assertIn('valid', validation_result_invalid)
+            self.assertIn('errors', validation_result_invalid)
+            self.assertIn('warnings', validation_result_invalid)
 
 
 class TestETLPipeline(unittest.TestCase):

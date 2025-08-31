@@ -7,6 +7,7 @@ fonctionne correctement quand les vraies dates ne sont pas disponibles.
 """
 
 import unittest
+import unittest.mock
 import pandas as pd
 import sys
 from pathlib import Path
@@ -65,19 +66,22 @@ class TestProgressionDateAssignment(unittest.TestCase):
 
     def test_assign_proxy_dates_without_session_id(self):
         """Test que la date actuelle est assignée quand pas de session_id"""
-        result = self.analyzer._assign_proxy_dates(self.test_data_without_sessions)
-        
-        # Vérifier que la colonne date a été ajoutée
-        self.assertIn('date', result.columns)
-        
-        # Vérifier que toutes les lignes ont la même date (date actuelle)
-        unique_dates = result['date'].unique()
-        self.assertEqual(len(unique_dates), 1)
-        
-        # Vérifier que la date est proche de maintenant (tolérance de 1 seconde)
-        current_time = pd.Timestamp.now()
-        time_diff = abs((unique_dates[0] - current_time).total_seconds())
-        self.assertLess(time_diff, 1)
+        # Mock de pd.Timestamp.now() pour un test déterministe
+        with unittest.mock.patch('pandas.Timestamp.now') as mock_now:
+            mock_now.return_value = pd.Timestamp('2023-01-01 12:00:00')
+            
+            result = self.analyzer._assign_proxy_dates(self.test_data_without_sessions)
+            
+            # Vérifier que la colonne date a été ajoutée
+            self.assertIn('date', result.columns)
+            
+            # Vérifier que toutes les lignes ont la même date (date actuelle)
+            unique_dates = result['date'].unique()
+            self.assertEqual(len(unique_dates), 1)
+            
+            # Vérifier que la date est celle du mock
+            expected_date = pd.Timestamp('2023-01-01 12:00:00')
+            self.assertEqual(unique_dates[0], expected_date)
 
     def test_assign_proxy_dates_maintains_order(self):
         """Test que l'ordre temporel relatif est maintenu"""

@@ -243,6 +243,9 @@ class OneRMCalculator:
                     axis=1
                 )
                 df_result.loc[mask, col_name] = one_rm_values
+            else:
+                # Si aucune donnée valide, créer une colonne vide mais avec la bonne structure
+                df_result[col_name] = np.nan
         
         return df_result
     

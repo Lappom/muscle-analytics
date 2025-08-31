@@ -305,21 +305,16 @@ class TestCalculationOptimizations:
         corrupted_data.loc[2, 'series_type'] = 'invalid_type'  # Type invalide
         
         # Les calculs devraient gérer les erreurs gracieusement
-        try:
-            data_with_volume = self.volume_calc.calculate_set_volume(corrupted_data)
-            
-            # Vérifier que le résultat n'est pas vide
-            assert not data_with_volume.empty, "Le résultat ne devrait pas être vide même avec des données corrompues"
-            
-            # Vérifier que les valeurs problématiques sont gérées
-            if 'volume' in data_with_volume.columns:
-                # Les volumes avec données invalides devraient être 0
-                assert data_with_volume.loc[0, 'volume'] == 0, "Volume avec reps NaN devrait être 0"
-                assert data_with_volume.loc[1, 'volume'] == 0, "Volume avec poids négatif devrait être 0"
-                
-        except Exception as e:
-            # Si une exception est levée, elle devrait être informative
-            assert "données" in str(e).lower() or "validation" in str(e).lower(), f"Exception non informative: {e}"
+        data_with_volume = self.volume_calc.calculate_set_volume(corrupted_data)
+        
+        # Vérifier que le résultat n'est pas vide
+        assert not data_with_volume.empty, "Le résultat ne devrait pas être vide même avec des données corrompues"
+        
+        # Vérifier que les valeurs problématiques sont gérées
+        if 'volume' in data_with_volume.columns:
+            # Les volumes avec données invalides devraient être 0
+            assert data_with_volume.loc[0, 'volume'] == 0, "Volume avec reps NaN devrait être 0"
+            assert data_with_volume.loc[1, 'volume'] == 0, "Volume avec poids négatif devrait être 0"
     
     def test_integration_optimization(self):
         """Test d'intégration des optimisations."""

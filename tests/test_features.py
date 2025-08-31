@@ -29,7 +29,7 @@ class TestVolumeCalculator:
         self.sample_data = pd.DataFrame({
             'session_id': [1, 1, 1, 2, 2, 2],
             'exercise': ['Bench Press', 'Bench Press', 'Squat', 'Bench Press', 'Bench Press', 'Squat'],
-            'series_type': ['principale', 'principale', 'principale', 'principale', 'principale', 'principale'],
+            'series_type': ['working_set', 'working_set', 'working_set', 'working_set', 'working_set', 'working_set'],
             'reps': [10, 8, 12, 10, 8, 12],
             'weight_kg': [100, 110, 120, 105, 115, 125],
             'skipped': [False, False, False, False, False, False]
@@ -167,7 +167,7 @@ class TestOneRMCalculator:
         """Test calcul 1RM sur DataFrame."""
         data = pd.DataFrame({
             'exercise': ['Bench Press', 'Bench Press', 'Squat'],
-            'series_type': ['principale', 'principale', 'principale'],
+            'series_type': ['working_set', 'working_set', 'working_set'],
             'reps': [5, 8, 10],
             'weight_kg': [100, 90, 120],
             'skipped': [False, False, False]
@@ -189,12 +189,12 @@ class TestProgressionAnalyzer:
         # Données de test CORRIGÉES avec dates
         self.sample_data = pd.DataFrame({
             'session_id': [1, 1, 2, 2, 3, 3],
-            'exercise': ['Bench Press', 'Bench Press', 'Bench Press', 'Bench Press', 'Bench Press', 'Bench Press'],
+            'exercise': ['Bench Press', 'Bench Press', 'Squat', 'Bench Press', 'Bench Press', 'Squat'],
             'series_type': ['working_set', 'working_set', 'working_set', 'working_set', 'working_set', 'working_set'],
-            'reps': [10, 8, 10, 8, 10, 8],
-            'weight_kg': [100, 110, 105, 115, 110, 120],
+            'reps': [10, 8, 12, 10, 8, 12],
+            'weight_kg': [100, 110, 120, 105, 115, 125],
             'skipped': [False, False, False, False, False, False],
-            'volume': [1000, 880, 1050, 920, 1100, 960]
+            'volume': [1000, 880, 1440, 1050, 920, 1500]
         })
         
         self.sessions_data = pd.DataFrame({
@@ -258,7 +258,10 @@ class TestProgressionAnalyzer:
     
     def test_detect_plateaus_empty_data(self):
         """Test détection de plateaux avec données vides."""
-        empty_data = pd.DataFrame(columns=['session_id', 'exercise', 'series_type', 'reps', 'weight_kg', 'skipped', 'volume', 'date'])
+        # Créer un DataFrame vide avec la structure attendue par detect_plateaus
+        empty_data = pd.DataFrame(columns=['session_id', 'date', 'volume', 'reps', 'weight_kg', 
+                                          'volume_ma', 'volume_progression', 'volume_progression_pct', 
+                                          'trend_slope', 'trend_r_squared', 'trend_p_value', 'exercise'])
         
         result = self.prog_analyzer.detect_plateaus(empty_data)
         
@@ -287,7 +290,7 @@ class TestFeatureCalculator:
         self.sample_data = pd.DataFrame({
             'session_id': [1, 1, 2, 2],
             'exercise': ['Bench Press', 'Bench Press', 'Bench Press', 'Squat'],
-            'series_type': ['principale', 'principale', 'principale', 'principale'],
+            'series_type': ['working_set', 'working_set', 'working_set', 'working_set'],
             'reps': [10, 8, 10, 12],
             'weight_kg': [100, 110, 105, 120],
             'skipped': [False, False, False, False]
@@ -391,7 +394,7 @@ class TestIntegration:
         data = pd.DataFrame({
             'session_id': [1, 1, 1, 2, 2, 2, 3, 3, 3],
             'exercise': ['Bench Press', 'Bench Press', 'Squat', 'Bench Press', 'Bench Press', 'Squat', 'Bench Press', 'Bench Press', 'Squat'],
-            'series_type': ['principale', 'principale', 'principale', 'principale', 'principale', 'principale', 'principale', 'principale', 'principale'],
+            'series_type': ['working_set', 'working_set', 'working_set', 'working_set', 'working_set', 'working_set', 'working_set', 'working_set', 'working_set'],
             'reps': [10, 8, 12, 10, 8, 12, 11, 9, 13],
             'weight_kg': [100, 110, 120, 105, 115, 125, 107, 117, 127],
             'skipped': [False, False, False, False, False, False, False, False, False]

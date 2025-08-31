@@ -10,11 +10,51 @@ import unittest
 from unittest.mock import Mock, patch, MagicMock
 import sys
 from pathlib import Path
+from datetime import datetime, timedelta
 
 # Ajouter les chemins pour les imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from dashboard.components.sidebar import _check_admin_authentication, _show_admin_logout
+
+
+class MockSessionState:
+    """Mock pour st.session_state qui permet l'accès aux attributs dynamiques"""
+    
+    def __init__(self):
+        self._data = {}
+    
+    def get(self, key, default=None):
+        """Simule st.session_state.get()"""
+        return self._data.get(key, default)
+    
+    def __getattr__(self, name):
+        """Permet l'accès aux attributs comme st.session_state.admin_authenticated"""
+        if name in self._data:
+            return self._data[name]
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+    
+    def __setattr__(self, name, value):
+        """Permet la définition d'attributs comme st.session_state.admin_authenticated = True"""
+        if name == '_data':
+            super().__setattr__(name, value)
+        else:
+            self._data[name] = value
+    
+    def __delattr__(self, name):
+        """Permet la suppression d'attributs comme del st.session_state.admin_authenticated"""
+        if name in self._data:
+            del self._data[name]
+        else:
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+    
+    def __contains__(self, key):
+        """Permet l'utilisation de 'in' comme 'admin_authenticated' in st.session_state"""
+        return key in self._data
+    
+    def clear(self):
+        """Nettoie toutes les données"""
+        self._data.clear()
 
 
 class TestSecurityImprovements(unittest.TestCase):
@@ -24,16 +64,26 @@ class TestSecurityImprovements(unittest.TestCase):
         """Configuration initiale pour chaque test"""
         # Mock de Streamlit
         self.mock_st = Mock()
-        self.mock_session_state = {}
+        
+        # Créer un mock de session state qui simule correctement st.session_state
+        self.mock_session_state = MockSessionState()
         self.mock_st.session_state = self.mock_session_state
         
-        # Patcher streamlit
+        # Mock des objets datetime avec des valeurs fixes
+        self.mock_datetime = Mock()
+        self.mock_datetime.now.return_value = datetime(2023, 1, 1, 12, 0, 0)
+        self.mock_datetime.timedelta = timedelta
+        
+        # Patcher streamlit et datetime
         self.st_patcher = patch('dashboard.components.sidebar.st', self.mock_st)
+        self.datetime_patcher = patch('dashboard.components.sidebar.datetime', self.mock_datetime)
         self.st_patcher.start()
+        self.datetime_patcher.start()
 
     def tearDown(self):
         """Nettoyage après chaque test"""
         self.st_patcher.stop()
+        self.datetime_patcher.stop()
 
     def test_admin_authentication_initial_state(self):
         """Test que l'authentification admin est refusée par défaut"""
@@ -53,8 +103,8 @@ class TestSecurityImprovements(unittest.TestCase):
     def test_admin_authentication_success(self):
         """Test que l'authentification admin réussit avec le bon mot de passe"""
         # Simuler une authentification réussie
-        self.mock_session_state['admin_authenticated'] = True
-        self.mock_session_state['admin_auth_time'] = Mock()
+        self.mock_session_state.admin_authenticated = True
+        self.mock_session_state.admin_auth_time = datetime(2023, 1, 1, 12, 0, 0)
         
         result = _check_admin_authentication()
         
@@ -68,26 +118,23 @@ class TestSecurityImprovements(unittest.TestCase):
         self.mock_st.sidebar.text_input.return_value = "wrong_password"
         self.mock_st.sidebar.button.return_value = True
         
-        # Mock de la vérification du mot de passe
-        with patch('dashboard.components.sidebar.datetime') as mock_datetime:
-            mock_datetime.now.return_value = Mock()
-            
-            result = _check_admin_authentication()
-            
-            # Vérifier que l'authentification échoue
-            self.assertFalse(result)
-            
-            # Vérifier que l'erreur est affichée
-            self.mock_st.error.assert_called_with("❌ Mot de passe incorrect")
+        # Utiliser le mock datetime configuré dans setUp
+        result = _check_admin_authentication()
+        
+        # Vérifier que l'authentification échoue
+        self.assertFalse(result)
+        
+        # Vérifier que l'erreur est affichée
+        self.mock_st.error.assert_called_with("❌ Mot de passe incorrect")
 
     def test_admin_session_expiration(self):
         """Test que les sessions admin expirent correctement"""
         from datetime import datetime, timedelta
         
         # Simuler une session expirée (plus de 30 minutes)
-        old_time = datetime.now() - timedelta(minutes=31)
-        self.mock_session_state['admin_authenticated'] = True
-        self.mock_session_state['admin_auth_time'] = old_time
+        old_time = datetime(2023, 1, 1, 11, 29, 0)  # 31 minutes avant le mock
+        self.mock_session_state.admin_authenticated = True
+        self.mock_session_state.admin_auth_time = old_time
         
         result = _check_admin_authentication()
         
@@ -104,8 +151,8 @@ class TestSecurityImprovements(unittest.TestCase):
     def test_admin_logout_button_display(self):
         """Test que le bouton de déconnexion s'affiche quand connecté"""
         # Simuler une session active
-        self.mock_session_state['admin_authenticated'] = True
-        self.mock_session_state['admin_auth_time'] = Mock()
+        self.mock_session_state.admin_authenticated = True
+        self.mock_session_state.admin_auth_time = datetime(2023, 1, 1, 12, 0, 0)
         
         # Simuler le clic sur le bouton de déconnexion
         self.mock_st.sidebar.button.return_value = True
@@ -118,8 +165,8 @@ class TestSecurityImprovements(unittest.TestCase):
     def test_admin_logout_functionality(self):
         """Test que la déconnexion fonctionne correctement"""
         # Simuler une session active
-        self.mock_session_state['admin_authenticated'] = True
-        self.mock_session_state['admin_auth_time'] = Mock()
+        self.mock_session_state.admin_authenticated = True
+        self.mock_session_state.admin_auth_time = datetime(2023, 1, 1, 12, 0, 0)
         
         # Simuler le clic sur le bouton de déconnexion
         self.mock_st.sidebar.button.return_value = True

@@ -38,6 +38,72 @@ class ETLImporter:
         if not self.db_manager.test_connection():
             logger.warning("Impossible de se connecter à la base de données")
     
+    def validate_data(self, data: pd.DataFrame) -> Dict[str, Any]:
+        """
+        Valide la qualité des données avant import.
+        
+        Args:
+            data: DataFrame à valider
+            
+        Returns:
+            Dictionnaire avec métriques de qualité
+        """
+        if data.empty:
+            return {'valid': False, 'errors': ['DataFrame vide']}
+        
+        errors = []
+        warnings = []
+        
+        # Vérifications de base
+        required_columns = ['exercise', 'reps', 'weight_kg']
+        for col in required_columns:
+            if col not in data.columns:
+                errors.append(f"Colonne manquante: {col}")
+        
+        # Vérifications de données
+        if 'reps' in data.columns:
+            if (data['reps'] <= 0).any():
+                warnings.append("Certaines répétitions sont <= 0")
+        
+        if 'weight_kg' in data.columns:
+            if (data['weight_kg'] < 0).any():
+                warnings.append("Certains poids sont négatifs")
+        
+        return {
+            'valid': len(errors) == 0,
+            'errors': errors,
+            'warnings': warnings,
+            'row_count': len(data)
+        }
+    
+    def import_csv(self, file_path: Union[str, Path], 
+                   force_import: bool = False) -> Dict[str, Any]:
+        """
+        Importe un fichier CSV.
+        
+        Args:
+            file_path: Chemin vers le fichier CSV
+            force_import: Force l'import même si des données existent
+            
+        Returns:
+            Dictionnaire avec résultats de l'import
+        """
+        return self.import_file(file_path, force_import)
+    
+    def import_xml(self, file_path: Union[str, Path], 
+                   force_import: bool = False) -> Dict[str, Any]:
+        """
+        Importe un fichier XML.
+        
+        Args:
+            file_path: Chemin vers le fichier XML
+            force_import: Force l'import même si des données existent
+            
+        Returns:
+            Dictionnaire avec résultats de l'import
+        """
+        return self.import_file(file_path, force_import)
+    
     def import_file(self, file_path: Union[str, Path], 
                    force_import: bool = False) -> Dict[str, Any]:
         """
@@ -83,7 +149,7 @@ class ETLImporter:
             insert_stats = self.db_manager.bulk_insert_from_dataframe(df)
             
             # Génération du rapport
-            quality_metrics = self.pipeline.validate_data_quality(df)
+            quality_metrics = self.validate_data(df)
             
             result = {
                 'success': True,

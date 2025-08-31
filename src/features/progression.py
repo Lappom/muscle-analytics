@@ -158,7 +158,10 @@ class ProgressionAnalyzer:
             result = pd.concat(progression_data, ignore_index=True)
             return result
         else:
-            return pd.DataFrame()
+            # Retourner un DataFrame vide avec la bonne structure
+            return pd.DataFrame(columns=['session_id', 'date', 'volume', 'reps', 'weight_kg', 
+                                       'volume_ma', 'volume_progression', 'volume_progression_pct', 
+                                       'trend_slope', 'trend_r_squared', 'trend_p_value', 'exercise'])
     
     def calculate_intensity_progression(self, df: pd.DataFrame,
                                       sessions_df: Optional[pd.DataFrame] = None) -> pd.DataFrame:
@@ -253,7 +256,11 @@ class ProgressionAnalyzer:
             DataFrame avec indicateurs de plateau
         """
         if progression_df.empty:
-            return pd.DataFrame()
+            # Retourner un DataFrame vide avec la bonne structure
+            return pd.DataFrame(columns=['session_id', 'date', 'volume', 'reps', 'weight_kg', 
+                                       'volume_ma', 'volume_progression', 'volume_progression_pct', 
+                                       'trend_slope', 'trend_r_squared', 'trend_p_value', 'exercise', 
+                                       'plateau_indicator'])
         
         result_data = []
         
@@ -326,7 +333,11 @@ class ProgressionAnalyzer:
         if result_data:
             return pd.concat(result_data, ignore_index=True)
         else:
-            return pd.DataFrame()
+            # Retourner un DataFrame vide avec la bonne structure
+            return pd.DataFrame(columns=['session_id', 'date', 'volume', 'reps', 'weight_kg', 
+                                       'volume_ma', 'volume_progression', 'volume_progression_pct', 
+                                       'trend_slope', 'trend_r_squared', 'trend_p_value', 'exercise', 
+                                       'plateau_indicator'])
     
     def calculate_performance_metrics(self, df: pd.DataFrame,
                                     sessions_df: Optional[pd.DataFrame] = None) -> Dict:
