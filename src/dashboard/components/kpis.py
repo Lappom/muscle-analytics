@@ -54,18 +54,39 @@ def _display_all_kpis(dashboard_data: Dict, filters: Optional[Dict] = None):
     with col3:
         weekly_frequency = dashboard_data.get('weekly_frequency', 0)
         frequency_trend = dashboard_data.get('frequency_trend', 0)
+        
+        # Formatage de la fréquence hebdomadaire
+        if weekly_frequency > 10:
+            frequency_display = f"{weekly_frequency:.0f}"
+        elif weekly_frequency > 1:
+            frequency_display = f"{weekly_frequency:.1f}"
+        else:
+            frequency_display = f"{weekly_frequency:.2f}"
+            
         st.metric(
             label="📈 Fréquence/semaine",
-            value=f"{weekly_frequency:.1f}",
+            value=frequency_display,
             delta=format_delta(frequency_trend, "number"),
             help="Nombre moyen de sessions par semaine"
         )
     
     with col4:
         consistency_score = dashboard_data.get('consistency_score', 0)
+        
+        # Formatage du score de régularité
+        if consistency_score >= 0.8:
+            consistency_display = f"{consistency_score:.0%}"
+            delta_color = "normal"
+        elif consistency_score >= 0.6:
+            consistency_display = f"{consistency_score:.0%}"
+            delta_color = "normal"
+        else:
+            consistency_display = f"{consistency_score:.0%}"
+            delta_color = "inverse"
+            
         st.metric(
             label="🎯 Score de régularité",
-            value=f"{consistency_score:.0%}",
+            value=consistency_display,
             help="Régularité d'entraînement sur la période"
         )
 
