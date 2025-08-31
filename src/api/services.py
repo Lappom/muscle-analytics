@@ -280,21 +280,7 @@ class AnalyticsService:
         except (ValueError, TypeError, IndexError):
             return default
 
-    def _safe_extract_float(self, df: pd.DataFrame, column: str, use_max: bool = False) -> Optional[float]:
-        """Extrait une valeur float d'une colonne DataFrame de manière sécurisée."""
-        return self._safe_extract_value(df, column, float, use_max=use_max, default=None)
 
-    def _safe_extract_int(self, df: pd.DataFrame, column: str) -> Optional[int]:
-        """Extrait une valeur int d'une colonne DataFrame de manière sécurisée."""
-        return self._safe_extract_value(df, column, int, use_max=False, default=None)
-
-    def _safe_extract_bool(self, df: pd.DataFrame, column: str, default: bool = False) -> bool:
-        """Extrait une valeur bool d'une colonne DataFrame de manière sécurisée."""
-        return self._safe_extract_value(df, column, bool, use_max=False, default=default)
-
-    def _safe_extract_str(self, df: pd.DataFrame, column: str) -> Optional[str]:
-        """Extrait une valeur string d'une colonne DataFrame de manière sécurisée."""
-        return self._safe_extract_value(df, column, str, use_max=False, default=None)
     
     def _convert_to_dataframe(self, data_list: List, data_type: str) -> pd.DataFrame:
         """
@@ -379,8 +365,8 @@ class AnalyticsService:
                     total_volume=float(exercise_data['volume'].sum()),
                     avg_volume_per_set=float(exercise_data['volume'].mean()),
                     avg_volume_per_session=float(exercise_data.groupby('session_id')['volume'].sum().mean()),
-                    weekly_volume=self._safe_extract_float(exercise_data, 'weekly_volume'),
-                    monthly_volume=self._safe_extract_float(exercise_data, 'monthly_volume')
+                                weekly_volume=self._safe_extract_value(exercise_data, 'weekly_volume', float),
+            monthly_volume=self._safe_extract_value(exercise_data, 'monthly_volume', float)
                 ))
         
         return volume_stats
@@ -417,16 +403,16 @@ class AnalyticsService:
             if not exercise_data.empty:
                 one_rm_stats.append(OneRMStats(
                     exercise=exercise_name,
-                    best_1rm_epley=self._safe_extract_float(exercise_data, '1rm_epley', use_max=True),
-                    best_1rm_brzycki=self._safe_extract_float(exercise_data, '1rm_brzycki', use_max=True),
-                    best_1rm_lander=self._safe_extract_float(exercise_data, '1rm_lander', use_max=True),
-                    best_1rm_oconner=self._safe_extract_float(exercise_data, '1rm_oconner', use_max=True),
-                    best_1rm_average=self._safe_extract_float(exercise_data, '1rm_average', use_max=True),
-                    current_1rm_epley=self._safe_extract_float(exercise_data, '1rm_epley'),
-                    current_1rm_brzycki=self._safe_extract_float(exercise_data, '1rm_brzycki'),
-                    current_1rm_lander=self._safe_extract_float(exercise_data, '1rm_lander'),
-                    current_1rm_oconner=self._safe_extract_float(exercise_data, '1rm_oconner'),
-                    current_1rm_average=self._safe_extract_float(exercise_data, '1rm_average')
+                                best_1rm_epley=self._safe_extract_value(exercise_data, '1rm_epley', float, use_max=True),
+            best_1rm_brzycki=self._safe_extract_value(exercise_data, '1rm_brzycki', float, use_max=True),
+            best_1rm_lander=self._safe_extract_value(exercise_data, '1rm_lander', float, use_max=True),
+            best_1rm_oconner=self._safe_extract_value(exercise_data, '1rm_oconner', float, use_max=True),
+            best_1rm_average=self._safe_extract_value(exercise_data, '1rm_average', float, use_max=True),
+            current_1rm_epley=self._safe_extract_value(exercise_data, '1rm_epley', float),
+            current_1rm_brzycki=self._safe_extract_value(exercise_data, '1rm_brzycki', float),
+            current_1rm_lander=self._safe_extract_value(exercise_data, '1rm_lander', float),
+            current_1rm_oconner=self._safe_extract_value(exercise_data, '1rm_oconner', float),
+            current_1rm_average=self._safe_extract_value(exercise_data, '1rm_average', float)
                 ))
         
         return one_rm_stats

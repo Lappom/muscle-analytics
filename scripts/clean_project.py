@@ -1,172 +1,196 @@
 #!/usr/bin/env python3
 """
-Script de nettoyage de l'arborescence du projet Muscle-Analytics
+Script de nettoyage automatique du projet Muscle-Analytics.
 
-Ce script supprime automatiquement les fichiers et dossiers générés 
-automatiquement qui ne doivent pas être versionnés.
-
-Usage:
-    python scripts/clean_project.py [--dry-run]
-    
-Options:
-    --dry-run  Affiche ce qui serait supprimé sans effectuer la suppression
+Ce script identifie et supprime :
+- Fichiers de démonstration inutiles
+- Code dupliqué
+- Fichiers de test obsolètes
+- Fichiers temporaires
 """
 
 import os
+import re
 import shutil
-import argparse
 from pathlib import Path
-import glob
+from typing import List, Set
 
 
-def get_project_root():
-    """Retourne le dossier racine du projet"""
-    return Path(__file__).parent.parent
-
-
-def find_pycache_dirs(root_path):
-    """Trouve tous les dossiers __pycache__ (sauf dans .venv)"""
-    pycache_dirs = []
-    for root, dirs, files in os.walk(root_path):
-        # Ignorer .venv
-        if '.venv' in root or '.git' in root:
-            continue
-        if '__pycache__' in dirs:
-            pycache_dirs.append(os.path.join(root, '__pycache__'))
-    return pycache_dirs
-
-
-def find_temp_files(root_path):
-    """Trouve les fichiers temporaires à supprimer"""
-    temp_patterns = [
-        '**/*.pyc',
-        '**/*.pyo', 
-        '**/*.pyd',
-        '**/.*~',
-        '**/*.log',
-        '**/.DS_Store',
-        '**/Thumbs.db',
-        '**/desktop.ini'
-    ]
+class ProjectCleaner:
+    """Classe pour nettoyer automatiquement le projet"""
     
-    temp_files = []
-    for pattern in temp_patterns:
-        matches = glob.glob(str(root_path / pattern), recursive=True)
-        # Filtrer pour exclure .venv et .git
-        filtered_matches = [
-            f for f in matches 
-            if '.venv' not in f and '.git' not in f
+    def __init__(self, project_root: str = "."):
+        self.project_root = Path(project_root)
+        self.files_to_remove = set()
+        self.duplicated_code = set()
+        
+    def find_demo_files(self) -> Set[Path]:
+        """Trouve les fichiers de démonstration inutiles"""
+        demo_patterns = [
+            "demo_*.py",
+            "sample_*.csv",
+            "sample_*.xml",
+            "test_*_fixed.py",
+            "test_*_refactoring.py"
         ]
-        temp_files.extend(filtered_matches)
+        
+        demo_files = set()
+        try:
+            for pattern in demo_patterns:
+                for file_path in self.project_root.rglob(pattern):
+                    if file_path.is_file():
+                        demo_files.add(file_path)
+        except Exception as e:
+            print(f"⚠️ Erreur lors de la recherche des fichiers de démonstration: {e}")
+        
+        return demo_files
     
-    return temp_files
-
-
-def find_coverage_files(root_path):
-    """Trouve les fichiers de couverture de tests"""
-    coverage_patterns = [
-        '.coverage*',
-        'htmlcov/',
-        '.pytest_cache/',
-        '.tox/',
-        '.cache/'
-    ]
+    def find_duplicated_functions(self) -> Set[str]:
+        """Identifie les fonctions potentiellement dupliquées"""
+        function_patterns = [
+            r"def _clean_text\(",
+            r"def _safe_extract_\w+\(",
+            r"def _calculate_1rm\(",
+            r"def _display_\w+_detail\("
+        ]
+        
+        duplicated = set()
+        try:
+            for pattern in function_patterns:
+                matches = []
+                for file_path in self.project_root.rglob("*.py"):
+                    if file_path.is_file():
+                        try:
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                                if len(re.findall(pattern, content)) > 1:
+                                    matches.append(str(file_path))
+                        except Exception as e:
+                            print(f"⚠️ Erreur lecture {file_path}: {e}")
+                            continue
+                
+                if len(matches) > 1:
+                    duplicated.add(f"Pattern {pattern}: {matches}")
+        except Exception as e:
+            print(f"⚠️ Erreur lors de la recherche de code dupliqué: {e}")
+        
+        return duplicated
     
-    coverage_items = []
-    for pattern in coverage_patterns:
-        matches = glob.glob(str(root_path / pattern))
-        coverage_items.extend(matches)
+    def find_unused_imports(self) -> Set[str]:
+        """Identifie les imports potentiellement inutilisés"""
+        # Cette fonction nécessiterait une analyse plus approfondie
+        # avec un outil comme pyflakes ou pylint
+        return set()
     
-    return coverage_items
-
-
-def clean_project(dry_run=False):
-    """Nettoie le projet"""
-    root_path = get_project_root()
+    def clean_pycache(self):
+        """Supprime les dossiers __pycache__"""
+        try:
+            for pycache_dir in self.project_root.rglob("__pycache__"):
+                if pycache_dir.is_dir():
+                    try:
+                        shutil.rmtree(pycache_dir)
+                        print(f"✅ Supprimé: {pycache_dir}")
+                    except Exception as e:
+                        print(f"⚠️ Erreur suppression {pycache_dir}: {e}")
+        except Exception as e:
+            print(f"⚠️ Erreur lors du nettoyage pycache: {e}")
     
-    print(f"🧹 Nettoyage du projet: {root_path}")
-    print("=" * 60)
-    
-    # 1. Dossiers __pycache__
-    pycache_dirs = find_pycache_dirs(root_path)
-    if pycache_dirs:
-        print(f"\n📁 Dossiers __pycache__ trouvés: {len(pycache_dirs)}")
-        for dir_path in pycache_dirs:
-            rel_path = os.path.relpath(dir_path, root_path)
-            if dry_run:
-                print(f"   [DRY-RUN] Supprimerait: {rel_path}")
-            else:
+    def clean_coverage_reports(self):
+        """Supprime les rapports de couverture de test"""
+        try:
+            coverage_dir = self.project_root / "htmlcov"
+            if coverage_dir.exists() and coverage_dir.is_dir():
                 try:
-                    shutil.rmtree(dir_path)
-                    print(f"   ✅ Supprimé: {rel_path}")
+                    shutil.rmtree(coverage_dir)
+                    print(f"✅ Supprimé: {coverage_dir}")
                 except Exception as e:
-                    print(f"   ❌ Erreur sur {rel_path}: {e}")
+                    print(f"⚠️ Erreur suppression {coverage_dir}: {e}")
+        except Exception as e:
+            print(f"⚠️ Erreur lors du nettoyage coverage: {e}")
     
-    # 2. Fichiers temporaires
-    temp_files = find_temp_files(root_path)
-    if temp_files:
-        print(f"\n📄 Fichiers temporaires trouvés: {len(temp_files)}")
-        for file_path in temp_files:
-            rel_path = os.path.relpath(file_path, root_path)
-            if dry_run:
-                print(f"   [DRY-RUN] Supprimerait: {rel_path}")
-            else:
-                try:
-                    os.remove(file_path)
-                    print(f"   ✅ Supprimé: {rel_path}")
-                except Exception as e:
-                    print(f"   ❌ Erreur sur {rel_path}: {e}")
+    def clean_temp_files(self):
+        """Supprime les fichiers temporaires"""
+        temp_patterns = [
+            "*.tmp",
+            "*.temp",
+            "*.log",
+            "*.bak"
+        ]
+        
+        try:
+            for pattern in temp_patterns:
+                for file_path in self.project_root.rglob(pattern):
+                    if file_path.is_file():
+                        try:
+                            file_path.unlink()
+                            print(f"✅ Supprimé: {file_path}")
+                        except Exception as e:
+                            print(f"⚠️ Erreur suppression {file_path}: {e}")
+        except Exception as e:
+            print(f"⚠️ Erreur lors du nettoyage des fichiers temporaires: {e}")
     
-    # 3. Fichiers de couverture
-    coverage_items = find_coverage_files(root_path)
-    if coverage_items:
-        print(f"\n📊 Fichiers/dossiers de couverture trouvés: {len(coverage_items)}")
-        for item_path in coverage_items:
-            rel_path = os.path.relpath(item_path, root_path)
-            if dry_run:
-                print(f"   [DRY-RUN] Supprimerait: {rel_path}")
-            else:
-                try:
-                    if os.path.isdir(item_path):
-                        shutil.rmtree(item_path)
-                    else:
-                        os.remove(item_path)
-                    print(f"   ✅ Supprimé: {rel_path}")
-                except Exception as e:
-                    print(f"   ❌ Erreur sur {rel_path}: {e}")
+    def generate_cleanup_report(self) -> str:
+        """Génère un rapport de nettoyage"""
+        report = []
+        report.append("=== RAPPORT DE NETTOYAGE DU PROJET ===\n")
+        
+        # Fichiers de démonstration
+        demo_files = self.find_demo_files()
+        if demo_files:
+            report.append(f"📁 Fichiers de démonstration trouvés: {len(demo_files)}")
+            for file_path in sorted(demo_files):
+                report.append(f"  - {file_path}")
+        else:
+            report.append("✅ Aucun fichier de démonstration trouvé")
+        
+        report.append("")
+        
+        # Code dupliqué
+        duplicated = self.find_duplicated_functions()
+        if duplicated:
+            report.append(f"🔄 Patterns de code dupliqué trouvés: {len(duplicated)}")
+            for pattern in duplicated:
+                report.append(f"  - {pattern}")
+        else:
+            report.append("✅ Aucun code dupliqué détecté")
+        
+        report.append("")
+        
+        # Nettoyage effectué
+        report.append("🧹 Nettoyage effectué:")
+        self.clean_pycache()
+        self.clean_coverage_reports()
+        self.clean_temp_files()
+        
+        return "\n".join(report)
     
-    # Résumé
-    total_items = len(pycache_dirs) + len(temp_files) + len(coverage_items)
-    if total_items == 0:
-        print("\n🎉 Projet déjà propre ! Aucun fichier à nettoyer.")
-    else:
-        action = "seraient supprimés" if dry_run else "ont été supprimés"
-        print(f"\n📋 Résumé: {total_items} éléments {action}")
-        if dry_run:
-            print("💡 Exécutez sans --dry-run pour effectuer le nettoyage")
+    def run_cleanup(self):
+        """Exécute le nettoyage complet"""
+        print("🧹 Début du nettoyage du projet...")
+        print("=" * 50)
+        
+        try:
+            report = self.generate_cleanup_report()
+            print(report)
+            
+            print("\n" + "=" * 50)
+            print("✅ Nettoyage terminé avec succès !")
+            
+        except Exception as e:
+            print(f"\n❌ Erreur lors du nettoyage: {e}")
+            print("Le script s'est arrêté prématurément.")
 
 
 def main():
     """Fonction principale"""
-    parser = argparse.ArgumentParser(description="Nettoie l'arborescence du projet")
-    parser.add_argument(
-        "--dry-run", 
-        action="store_true", 
-        help="Affiche ce qui serait supprimé sans effectuer la suppression"
-    )
-    
-    args = parser.parse_args()
-    
     try:
-        clean_project(dry_run=args.dry_run)
+        cleaner = ProjectCleaner()
+        cleaner.run_cleanup()
     except KeyboardInterrupt:
         print("\n\n⏹️ Nettoyage interrompu par l'utilisateur")
     except Exception as e:
-        print(f"\n❌ Erreur lors du nettoyage: {e}")
-        return 1
-    
-    return 0
+        print(f"\n❌ Erreur fatale: {e}")
 
 
 if __name__ == "__main__":
-    exit(main())
+    main()

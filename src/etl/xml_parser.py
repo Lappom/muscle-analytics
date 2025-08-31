@@ -224,37 +224,15 @@ class XMLParser:
         # Si pas de mapping trouvé, utilise le tag nettoyé
         return tag_cleaned if tag_cleaned else None
     
+from .utils import TextCleaner
+
     def _clean_tag_name(self, tag: str) -> str:
         """Nettoie un nom de tag XML"""
-        # Suppression des namespaces
-        if '}' in tag:
-            tag = tag.split('}')[1]
-        
-        # Nettoyage des caractères spéciaux
-        import re
-        tag = re.sub(r'[^\w]', '_', tag)
-        tag = tag.strip('_')
-        
-        return tag
+        return TextCleaner.clean_tag_name(tag)
     
     def _clean_value(self, value: str) -> str:
         """Nettoie une valeur XML"""
-        if not value:
-            return ''
-        
-        # Décodage des entités HTML/XML
-        value = value.replace('&amp;', '&')
-        value = value.replace('&lt;', '<')
-        value = value.replace('&gt;', '>')
-        value = value.replace('&quot;', '"')
-        value = value.replace('&apos;', "'")
-        
-        # Nettoyage des espaces
-        value = value.replace('\u00a0', ' ')
-        value = value.replace('\xa0', ' ')
-        value = value.strip()
-        
-        return value
+        return TextCleaner.clean_xml_value(value)
     
     def _parse_text_content(self, text: str) -> Dict[str, str]:
         """Parse le contenu texte pour extraire des données structurées"""

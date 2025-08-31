@@ -11,6 +11,16 @@ from typing import Dict, List, Optional
 from ..services.api_client import get_api_client
 from ..utils import format_weight
 
+def _display_trend_metric(label: str, value: float, filters: Dict):
+    """Affiche une métrique de tendance avec formatage automatique"""
+    color = "normal" if value == 0 else "delta" if value > 0 else "inverse"
+    st.metric(
+        label,
+        f"{value:.1f}%" if pd.notna(value) else "N/A",
+        delta=f"{abs(value):.1f}%" if pd.notna(value) and value != 0 else None,
+        delta_color=color
+    )
+
 def apply_theme_to_chart(fig, filters: Dict):
     """Applique les paramètres de personnalisation aux graphiques"""
     theme = filters.get('theme', 'Clair')
@@ -750,22 +760,10 @@ def _display_exercise_volume_trends(exercise_data: pd.Series, filters: Dict):
     col1, col2 = st.columns(2)
     
     with col1:
-        trend_7d_color = "normal" if trend_7d == 0 else "delta" if trend_7d > 0 else "inverse"
-        st.metric(
-            "Tendance 7 jours", 
-            f"{trend_7d:.1f}%" if pd.notna(trend_7d) else "N/A",
-            delta=f"{abs(trend_7d):.1f}%" if pd.notna(trend_7d) and trend_7d != 0 else None,
-            delta_color=trend_7d_color
-        )
+        _display_trend_metric("Tendance 7 jours", trend_7d, filters)
     
     with col2:
-        trend_30d_color = "normal" if trend_30d == 0 else "delta" if trend_30d > 0 else "inverse"
-        st.metric(
-            "Tendance 30 jours", 
-            f"{trend_30d:.1f}%" if pd.notna(trend_30d) else "N/A",
-            delta=f"{abs(trend_30d):.1f}%" if pd.notna(trend_30d) and trend_30d != 0 else None,
-            delta_color=trend_30d_color
-        )
+        _display_trend_metric("Tendance 30 jours", trend_30d, filters)
     
     # Recommandations basées sur les tendances
     _display_progression_recommendations(exercise_data)

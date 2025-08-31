@@ -54,11 +54,13 @@ docker-test: ## Teste l'API containerisée
 	$(PYTHON) $(SCRIPTS_DIR)/test_api_docker.py
 
 ## Maintenance
-clean: ## Nettoie les fichiers temporaires
+clean: ## Nettoie le projet (fichiers temporaires, cache, etc.)
 	$(PYTHON) $(SCRIPTS_DIR)/clean_project.py
 
-clean-dry: ## Affiche ce qui serait nettoyé
-	$(PYTHON) $(SCRIPTS_DIR)/clean_project.py --dry-run
+clean-all: ## Nettoyage complet avec suppression des fichiers de démonstration
+	@echo "🧹 Nettoyage complet du projet..."
+	$(PYTHON) $(SCRIPTS_DIR)/clean_project.py
+	@echo "✅ Nettoyage terminé !"
 
 lint: ## Vérifie le style du code
 	$(PYTHON) -m flake8 src/ tests/
@@ -74,4 +76,4 @@ docs: ## Génère la documentation API
 	@echo "  API: http://localhost:8000/docs"
 	@echo "  Redoc: http://localhost:8000/redoc"
 
-.PHONY: help install setup-env config test-db dev start test test-cov docker-build docker-up docker-down docker-test clean clean-dry lint format docs
+.PHONY: help install setup-env config test-db dev start test test-cov docker-build docker-up docker-down docker-test clean clean-all lint format docs

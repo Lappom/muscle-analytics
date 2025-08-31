@@ -296,18 +296,11 @@ class DataNormalizer:
         cleaned = self._clean_text(str(text_value))
         return cleaned if cleaned else None
     
+from .utils import TextCleaner
+
     def _clean_text(self, text: str) -> str:
         """Nettoie un texte (espaces insécables, trim)"""
-        if not isinstance(text, str):
-            return str(text)
-            
-        # Remplacement espaces insécables
-        text = text.replace('\u00a0', ' ').replace('\xa0', ' ')
-        
-        # Nettoyage espaces multiples
-        text = re.sub(r'\s+', ' ', text.strip())
-        
-        return text
+        return TextCleaner.clean_text(text)
     
     def _add_computed_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Ajoute des features calculées"""
@@ -317,24 +310,14 @@ class DataNormalizer:
         df['volume'] = df['reps'] * df['weight_kg']
         
         # 1RM estimé (formule d'Epley)
-        df['estimated_1rm'] = df.apply(self._calculate_1rm, axis=1)
+        df['estimated_1rm'] = df.apply(lambda row: row['weight_kg'] * (1 + row['reps'] / 30) if row['reps'] > 0 and row['weight_kg'] > 0 and not row['skipped'] else 0.0, axis=1)
         
         # Indicateur de série valide
         df['is_valid_set'] = (df['reps'] > 0) & (~df['skipped'])
         
         return df
     
-    def _calculate_1rm(self, row: pd.Series) -> float:
-        """
-        Calcule le 1RM estimé avec la formule d'Epley.
-        
-        1RM = weight * (1 + reps/30)
-        """
-        if row['reps'] <= 0 or row['weight_kg'] <= 0 or row['skipped']:
-            return 0.0
-            
-        # Formule d'Epley
-        return row['weight_kg'] * (1 + row['reps'] / 30)
+
     
     def _clean_invalid_rows(self, df: pd.DataFrame) -> pd.DataFrame:
         """Supprime les lignes avec des données invalides"""

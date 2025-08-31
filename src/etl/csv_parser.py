@@ -224,19 +224,11 @@ class CSVParser:
                 
         return df_renamed
     
+from .utils import TextCleaner
+
     def _clean_text(self, text: str) -> str:
         """Nettoie le texte (espaces insécables, accents, etc.)"""
-        if not isinstance(text, str):
-            return str(text)
-            
-        # Remplacement des espaces insécables par des espaces normaux
-        text = text.replace('\u00a0', ' ')
-        text = text.replace('\xa0', ' ')
-        
-        # Suppression des espaces en début/fin
-        text = text.strip()
-        
-        return text
+        return TextCleaner.clean_text(text)
     
     def _validate_required_columns(self, df: pd.DataFrame) -> None:
         """Valide la présence des colonnes obligatoires"""
