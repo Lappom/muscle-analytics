@@ -157,6 +157,18 @@ class FeatureCalculator:
             intensity_progression = self.progression_analyzer.calculate_intensity_progression(result_df, sessions_df)
             progression_data['intensity_progression'] = intensity_progression
             
+            # Calcul des Personal Records (PR)
+            pr_data = self.progression_analyzer.calculate_personal_records(result_df, sessions_df, 'volume')
+            progression_data['personal_records'] = pr_data
+            
+            # Ajout des données PR au DataFrame principal pour faciliter l'accès dans l'API
+            if not pr_data.empty:
+                pr_dict = pr_data.set_index('exercise')[['days_since_last_pr', 'current_pr', 'total_pr_count']].to_dict('index')
+                for exercise, pr_info in pr_dict.items():
+                    exercise_mask = result_df['exercise'] == exercise
+                    for col, value in pr_info.items():
+                        result_df.loc[exercise_mask, col] = value
+            
             # Détection de plateaux (nécessite des données de progression temporelles)
             # Skip si pas assez de données temporelles
             if sessions_df is not None and len(result_df) > 6:

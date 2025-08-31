@@ -98,6 +98,79 @@ def display_footer(filters: Dict):
     # Informations sur l'état du système
     _display_system_status(filters)
 
+def _display_automatic_plateau_alerts(dashboard_data: Dict):
+    """Affiche les alertes automatiques de plateau en haut du dashboard"""
+    exercises_with_plateau = dashboard_data.get('exercises_with_plateau', [])
+    
+    if not exercises_with_plateau:
+        return
+    
+    # Container d'alerte avec style d'urgence
+    with st.container():
+        st.markdown("""
+        <div style="
+            background: linear-gradient(90deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 1rem;
+            border-radius: 10px;
+            margin: 1rem 0;
+            border-left: 5px solid #c44569;
+        ">
+        """, unsafe_allow_html=True)
+        
+        st.markdown("🚨 **ALERTE PLATEAU AUTOMATIQUE DÉTECTÉE**")
+        
+        # Métriques rapides
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Exercices en plateau", len(exercises_with_plateau), delta_color="inverse")
+        
+        with col2:
+            total_exercises = dashboard_data.get('total_exercises', 0)
+            if total_exercises > 0:
+                plateau_percentage = (len(exercises_with_plateau) / total_exercises) * 100
+                st.metric("% d'exercices en plateau", f"{plateau_percentage:.1f}%", delta_color="inverse")
+            else:
+                st.metric("% d'exercices en plateau", "N/A")
+        
+        with col3:
+            st.metric("Niveau d'alerte", 
+                     "🔴 Critique" if len(exercises_with_plateau) >= 3 else "🟡 Modéré" if len(exercises_with_plateau) == 2 else "🟠 Faible")
+        
+        # Message d'alerte contextuel
+        if len(exercises_with_plateau) >= 3:
+            st.warning("""
+            **🔄 Programme complet à revoir** - Plus de 50% de vos exercices sont en plateau.
+            
+            **Actions immédiates recommandées :**
+            - Changez complètement votre programme d'entraînement
+            - Intégrez de nouveaux exercices et variations
+            - Considérez une période de deload ou de récupération
+            """)
+        elif len(exercises_with_plateau) == 2:
+            st.info("""
+            **⚖️ Ajustement modéré nécessaire** - 2 exercices en plateau détectés.
+            
+            **Actions recommandées :**
+            - Variez les rep ranges et intensités
+            - Ajoutez des techniques d'intensification
+            - Modifiez l'ordre des exercices
+            """)
+        else:
+            st.info("""
+            **🎯 Ajustement ciblé** - 1 exercice en plateau détecté.
+            
+            **Actions recommandées :**
+            - Variez les paramètres de l'exercice
+            - Ajoutez des variations
+            - Considérez une progression plus lente
+            """)
+        
+        # Liste des exercices en plateau
+        st.markdown(f"**📋 Exercices en plateau :** {', '.join(exercises_with_plateau)}")
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+
 def _display_system_status(filters: Dict):
     """Affiche l'état du système"""
     col1, col2, col3 = st.columns(3)
@@ -138,6 +211,11 @@ def main():
     
     # Affichage des KPIs
     display_kpis(dashboard_data, filters)
+    
+    # Affichage des alertes automatiques de plateau
+    if dashboard_data.get('exercises_with_plateau'):
+        st.markdown("---")
+        _display_automatic_plateau_alerts(dashboard_data)
         
     # Navigation par onglets
     display_tabs(filters)

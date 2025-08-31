@@ -14,6 +14,10 @@ from typing import Dict, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 from scipy import stats
 
+# Constantes pour l'assignation de dates par défaut
+DEFAULT_START_DATE = pd.Timestamp('2024-01-01')  # Date de début arbitraire pour maintenir l'ordre temporel
+DEFAULT_DATE_SPACING = pd.Timedelta(days=1)  # Espacement entre sessions sans dates
+
 
 class ProgressionAnalyzer:
     """Analyseur de progression d'entraînement."""
@@ -23,6 +27,39 @@ class ProgressionAnalyzer:
         self.trend_threshold = 0.05  # Seuil de tendance significative (5%)
         self.plateau_threshold = 0.02  # Seuil de plateau (2%)
         self.min_sessions_for_trend = 5  # Nombre minimum de séances pour détecter une tendance
+    
+    def _assign_proxy_dates(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Assigne des dates par défaut quand les vraies dates ne sont pas disponibles.
+        
+        Cette fonction maintient l'ordre temporel relatif des sessions en utilisant
+        des dates arbitraires consécutives à partir d'une date de référence.
+        
+        Args:
+            df: DataFrame contenant les données d'entraînement
+            
+        Returns:
+            DataFrame avec une colonne 'date' ajoutée ou mise à jour
+        """
+        df_with_dates = df.copy()
+        
+        if 'session_id' in df_with_dates.columns:
+            # Trier les sessions pour maintenir un ordre cohérent
+            unique_sessions = sorted(df_with_dates['session_id'].unique())
+            
+            # Créer un mapping session_id -> date en maintenant l'ordre relatif
+            # Chaque session reçoit une date consécutive à partir de DEFAULT_START_DATE
+            session_to_date = {
+                sid: DEFAULT_START_DATE + (i * DEFAULT_DATE_SPACING)
+                for i, sid in enumerate(unique_sessions)
+            }
+            
+            df_with_dates['date'] = df_with_dates['session_id'].map(session_to_date)
+        else:
+            # Si pas de session_id, utiliser la date actuelle comme point de référence unique
+            df_with_dates['date'] = pd.Timestamp.now()
+        
+        return df_with_dates
     
     def calculate_volume_progression(self, df: pd.DataFrame,
                                    sessions_df: Optional[pd.DataFrame] = None,
@@ -53,11 +90,11 @@ class ProgressionAnalyzer:
             )
             df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
         else:
-            df_with_dates = df.copy()
-            df_with_dates['date'] = df_with_dates['session_id']  # Proxy temporel
+            # Utiliser la fonction helper pour assigner des dates par défaut
+            df_with_dates = self._assign_proxy_dates(df)
         
         # Filtrer les sets principaux
-        mask = (df_with_dates['series_type'] == 'principale') & (df_with_dates['skipped'] != True)
+        mask = (df_with_dates['series_type'] == 'working_set') & (df_with_dates['skipped'] != True)
         working_sets = df_with_dates[mask].copy()
         
         # Progression par exercice
@@ -121,7 +158,10 @@ class ProgressionAnalyzer:
             result = pd.concat(progression_data, ignore_index=True)
             return result
         else:
-            return pd.DataFrame()
+            # Retourner un DataFrame vide avec la bonne structure
+            return pd.DataFrame(columns=['session_id', 'date', 'volume', 'reps', 'weight_kg', 
+                                       'volume_ma', 'volume_progression', 'volume_progression_pct', 
+                                       'trend_slope', 'trend_r_squared', 'trend_p_value', 'exercise'])
     
     def calculate_intensity_progression(self, df: pd.DataFrame,
                                       sessions_df: Optional[pd.DataFrame] = None) -> pd.DataFrame:
@@ -150,11 +190,11 @@ class ProgressionAnalyzer:
             )
             df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
         else:
-            df_with_dates = df.copy()
-            df_with_dates['date'] = df_with_dates['session_id']
+            # Utiliser la fonction helper pour assigner des dates par défaut
+            df_with_dates = self._assign_proxy_dates(df)
         
         # Filtrer les sets principaux
-        mask = (df_with_dates['series_type'] == 'principale') & (df_with_dates['skipped'] != True)
+        mask = (df_with_dates['series_type'] == 'working_set') & (df_with_dates['skipped'] != True)
         working_sets = df_with_dates[mask].copy()
         
         # Intensité par exercice et séance
@@ -216,7 +256,11 @@ class ProgressionAnalyzer:
             DataFrame avec indicateurs de plateau
         """
         if progression_df.empty:
-            return pd.DataFrame()
+            # Retourner un DataFrame vide avec la bonne structure
+            return pd.DataFrame(columns=['session_id', 'date', 'volume', 'reps', 'weight_kg', 
+                                       'volume_ma', 'volume_progression', 'volume_progression_pct', 
+                                       'trend_slope', 'trend_r_squared', 'trend_p_value', 'exercise', 
+                                       'plateau_indicator'])
         
         result_data = []
         
@@ -289,7 +333,11 @@ class ProgressionAnalyzer:
         if result_data:
             return pd.concat(result_data, ignore_index=True)
         else:
-            return pd.DataFrame()
+            # Retourner un DataFrame vide avec la bonne structure
+            return pd.DataFrame(columns=['session_id', 'date', 'volume', 'reps', 'weight_kg', 
+                                       'volume_ma', 'volume_progression', 'volume_progression_pct', 
+                                       'trend_slope', 'trend_r_squared', 'trend_p_value', 'exercise', 
+                                       'plateau_indicator'])
     
     def calculate_performance_metrics(self, df: pd.DataFrame,
                                     sessions_df: Optional[pd.DataFrame] = None) -> Dict:
@@ -443,3 +491,210 @@ class ProgressionAnalyzer:
             )
         
         return recommendations
+    
+    def calculate_personal_records(self, df: pd.DataFrame,
+                                 sessions_df: Optional[pd.DataFrame] = None,
+                                 metric_col: str = 'volume') -> pd.DataFrame:
+        """
+        Calcule les Personal Records (PR) et les jours depuis le dernier PR.
+        
+        Args:
+            df: DataFrame avec données d'entraînement
+            sessions_df: DataFrame des séances avec dates
+            metric_col: Colonne métrique à analyser (volume, weight_kg, 1rm_epley)
+            
+        Returns:
+            DataFrame avec informations sur les PR par exercice
+        """
+        if df.empty:
+            return pd.DataFrame()
+        
+        # Assurer la présence de la colonne métrique
+        if metric_col not in df.columns:
+            if metric_col == 'volume':
+                df = df.copy()
+                df['volume'] = df['reps'].fillna(0) * df['weight_kg'].fillna(0)
+            else:
+                return pd.DataFrame()
+        
+        # Joindre avec les dates si disponible
+        if sessions_df is not None:
+            df_with_dates = df.merge(
+                sessions_df[['id', 'date']], 
+                left_on='session_id', 
+                right_on='id', 
+                how='left'
+            )
+            df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
+        else:
+            # Utiliser la fonction helper pour assigner des dates par défaut
+            df_with_dates = self._assign_proxy_dates(df)
+        
+        # Filtrer les sets de travail non skippés
+        mask = (df_with_dates['series_type'] == 'working_set') & (df_with_dates['skipped'] != True)
+        working_sets = df_with_dates[mask].copy()
+        
+        pr_data = []
+        current_date = pd.Timestamp.now()
+        
+        for exercise in working_sets['exercise'].unique():
+            exercise_data = working_sets[working_sets['exercise'] == exercise].copy()
+            exercise_data = exercise_data.sort_values('date')
+            
+            if exercise_data.empty:
+                continue
+            
+            # Trouver le maximum de la métrique
+            max_value = exercise_data[metric_col].max()
+            
+            # Trouver la date du dernier PR (dernière fois que le maximum a été atteint)
+            pr_rows = exercise_data[exercise_data[metric_col] == max_value]
+            if not pr_rows.empty:
+                last_pr_date = pr_rows['date'].max()
+                days_since_pr = (current_date - last_pr_date).days
+            else:
+                last_pr_date = None
+                days_since_pr = None
+            
+            # Compter le nombre de PR (nombre de fois où un nouveau record a été établi)
+            exercise_data_sorted = exercise_data.sort_values('date')
+            cumulative_max = exercise_data_sorted[metric_col].cummax()
+            pr_count = (exercise_data_sorted[metric_col] == cumulative_max).sum()
+            
+            pr_data.append({
+                'exercise': exercise,
+                'current_pr': max_value,
+                'last_pr_date': last_pr_date,
+                'days_since_last_pr': days_since_pr,
+                'total_pr_count': pr_count,
+                'first_session_date': exercise_data['date'].min(),
+                'latest_session_date': exercise_data['date'].max(),
+                'total_sessions': len(exercise_data['session_id'].unique())
+            })
+        
+        return pd.DataFrame(pr_data)
+    
+    def calculate_volume_trends(self, df: pd.DataFrame,
+                              sessions_df: Optional[pd.DataFrame] = None,
+                              periods: List[int] = [7, 30]) -> Dict[str, pd.DataFrame]:
+        """
+        Calcule les tendances de volume sur différentes périodes.
+        
+        Args:
+            df: DataFrame avec données d'entraînement
+            sessions_df: DataFrame des séances
+            periods: Liste des périodes en jours pour calculer les tendances
+            
+        Returns:
+            Dictionnaire avec les tendances par période et par exercice
+        """
+        from datetime import datetime, timedelta
+        
+        # Calculer volume si pas présent
+        if 'volume' not in df.columns:
+            df = df.copy()
+            df['volume'] = df['reps'].fillna(0) * df['weight_kg'].fillna(0)
+        
+        # Joindre avec les dates
+        if sessions_df is not None:
+            df_with_dates = df.merge(
+                sessions_df[['id', 'date']], 
+                left_on='session_id', 
+                right_on='id', 
+                how='left'
+            )
+            df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
+        else:
+            return {}
+        
+        # Filtrer les sets principaux (utiliser 'working_set' et non 'principale')
+        mask = (df_with_dates['series_type'] == 'working_set') & (df_with_dates['skipped'] != True)
+        working_sets = df_with_dates[mask].copy()
+        
+        if working_sets.empty:
+            return {}
+        
+        # Date la plus récente dans les données
+        max_date = working_sets['date'].max()
+        
+        trends_by_period = {}
+        
+        for period_days in periods:
+            # Pour les courtes périodes, utiliser des sessions récentes plutôt qu'une date fixe
+            if period_days <= 30:
+                # Prendre les N dernières sessions au lieu d'une période de temps fixe
+                recent_sessions = (working_sets
+                                 .groupby(['exercise', 'session_id', 'date'])['volume']
+                                 .sum()
+                                 .reset_index()
+                                 .sort_values('date')
+                                 .groupby('exercise')
+                                 .tail(max(2, period_days // 3))  # Au moins 2 points, environ 1 session tous les 3 jours
+                                 .reset_index(drop=True))
+                session_volume = recent_sessions
+            else:
+                # Pour les longues périodes, utiliser la méthode basée sur les dates
+                start_date = max_date - timedelta(days=period_days)
+                period_data = working_sets[working_sets['date'] >= start_date].copy()
+                
+                if period_data.empty:
+                    continue
+                
+                session_volume = (period_data
+                                .groupby(['exercise', 'session_id', 'date'])['volume']
+                                .sum()
+                                .reset_index())
+            
+            trends_data = []
+            
+            for exercise in session_volume['exercise'].unique():
+                exercise_data = session_volume[session_volume['exercise'] == exercise].copy()
+                exercise_data = exercise_data.sort_values('date')
+                
+                if len(exercise_data) < 2:  # Minimum 2 points pour calculer une tendance
+                    continue
+                
+                # Calculer la tendance linéaire
+                x = np.arange(len(exercise_data))
+                y = exercise_data['volume'].values
+                
+                try:
+                    # Régression linéaire
+                    linregress_result = stats.linregress(x, y)
+                    slope = linregress_result.slope
+                    
+                    # Calculer le pourcentage de changement
+                    mean_volume = y.mean()
+                    if mean_volume > 0:
+                        # Tendance en pourcentage par jour * nombre de jours
+                        trend_pct = (slope / mean_volume) * 100 * len(x)
+                    else:
+                        trend_pct = 0.0
+                    
+                    # Limiter la tendance pour éviter des valeurs aberrantes
+                    trend_pct = max(-100, min(100, trend_pct))
+                    
+                    trends_data.append({
+                        'exercise': exercise,
+                        'period_days': period_days,
+                        'trend_slope': slope,
+                        'trend_pct': round(trend_pct, 2),
+                        'data_points': len(exercise_data),
+                        'mean_volume': round(mean_volume, 2)
+                    })
+                    
+                except Exception as e:
+                    # En cas d'erreur, tendance nulle
+                    trends_data.append({
+                        'exercise': exercise,
+                        'period_days': period_days,
+                        'trend_slope': 0.0,
+                        'trend_pct': 0.0,
+                        'data_points': len(exercise_data),
+                        'mean_volume': round(y.mean() if len(y) > 0 else 0, 2)
+                    })
+            
+            if trends_data:
+                trends_by_period[f'{period_days}d'] = pd.DataFrame(trends_data)
+        
+        return trends_by_period

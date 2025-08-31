@@ -97,6 +97,7 @@ class ProgressionStats(BaseModel):
     volume_trend_30d: Optional[float] = None
     plateau_detected: bool = False
     days_since_last_pr: Optional[int] = None
+    trend_slope: Optional[float] = None  # Pente de progression pour graphique scatter
     
     model_config = ConfigDict(from_attributes=True)
 

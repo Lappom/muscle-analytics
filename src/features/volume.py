@@ -44,8 +44,17 @@ class VolumeCalculator:
         """
         df = df.copy()
         
-        # Calcul du volume (reps × poids) en gérant les valeurs nulles
-        df['volume'] = df['reps'].fillna(0) * df['weight_kg'].fillna(0)
+        # Validation des données avant calcul
+        # Remplacer les valeurs invalides par 0
+        valid_reps = df['reps'].fillna(0)
+        valid_weight = df['weight_kg'].fillna(0)
+        
+        # Valider que les poids et reps sont positifs
+        valid_reps = valid_reps.where(valid_reps > 0, 0)
+        valid_weight = valid_weight.where(valid_weight > 0, 0)
+        
+        # Calcul du volume (reps × poids) avec données validées
+        df['volume'] = valid_reps * valid_weight
         
         # Volume à 0 pour les sets skipped ou sans données valides
         df.loc[df['skipped'] == True, 'volume'] = 0
@@ -69,9 +78,18 @@ class VolumeCalculator:
         if 'volume' not in df.columns:
             df = self.calculate_set_volume(df)
         
-        # Filtrer les sets non-skipped et de type 'principale'
-        mask = (df['skipped'] != True) & (df['series_type'] == 'principale')
+        # Filtrer les sets non-skipped et de type 'working_set'
+        mask = (df['skipped'] != True) & (df['series_type'] == 'working_set')
         working_sets = df[mask].copy()
+        
+        # Si aucun set working_set, retourner un DataFrame vide avec la bonne structure
+        if working_sets.empty:
+            if group_by_exercise:
+                return pd.DataFrame(columns=['session_id', 'exercise', 'volume_sum', 'volume_count', 
+                                           'volume_mean', 'reps_sum', 'reps_mean', 'weight_kg_max', 'weight_kg_mean'])
+            else:
+                return pd.DataFrame(columns=['session_id', 'volume_sum', 'volume_count', 
+                                           'volume_mean', 'exercise_count'])
         
         if group_by_exercise:
             # Volume par exercice et par séance
@@ -141,8 +159,12 @@ class VolumeCalculator:
         df_with_dates['week'] = df_with_dates['date'].dt.to_period(f'W-{start_day}')
         
         # Filtrer les sets principaux
-        mask = (df_with_dates['skipped'] != True) & (df_with_dates['series_type'] == 'principale')
+        mask = (df_with_dates['skipped'] != True) & (df_with_dates['series_type'] == 'working_set')
         working_sets = df_with_dates[mask].copy()
+        
+        # Si aucun set working_set, retourner un DataFrame vide avec la bonne structure
+        if working_sets.empty:
+            return pd.DataFrame(columns=['week', 'exercise', 'volume_sum', 'volume_count', 'sessions_count'])
         
         # Volume par semaine et par exercice
         weekly_stats = working_sets.groupby(['week', 'exercise']).agg({
@@ -188,7 +210,7 @@ class VolumeCalculator:
         df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
         
         # Filtrer les sets principaux
-        mask = (df_with_dates['skipped'] != True) & (df_with_dates['series_type'] == 'principale')
+        mask = (df_with_dates['skipped'] != True) & (df_with_dates['series_type'] == 'working_set')
         working_sets = df_with_dates[mask].copy()
         
         # Volume quotidien par exercice
@@ -243,7 +265,7 @@ class VolumeCalculator:
                                                           sessions_df=sessions_df)
         
         # Statistiques générales
-        mask = (df_with_volume['skipped'] != True) & (df_with_volume['series_type'] == 'principale')
+        mask = (df_with_volume['skipped'] != True) & (df_with_volume['series_type'] == 'working_set')
         working_sets = df_with_volume[mask]
         
         summary = {

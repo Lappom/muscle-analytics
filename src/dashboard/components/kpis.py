@@ -93,22 +93,108 @@ def _display_all_kpis(dashboard_data: Dict, filters: Optional[Dict] = None):
 def _display_alerts_and_recommendations(dashboard_data: Dict):
     """Affiche les alertes et recommandations"""
     # Alertes sur les plateaux
-    plateaus_detected = dashboard_data.get('plateaus_detected', [])
-    if plateaus_detected:
-        st.markdown('<div class="alert-warning">', unsafe_allow_html=True)
-        st.warning(f"⚠️ Plateaux détectés sur {len(plateaus_detected)} exercice(s)")
-        for exercise in plateaus_detected[:3]:  # Afficher max 3 exercices
-            st.write(f"• {exercise}")
-        st.markdown('</div>', unsafe_allow_html=True)
+    exercises_with_plateau = dashboard_data.get('exercises_with_plateau', [])
     
-    # Recommandations positives
-    good_progress = dashboard_data.get('good_progress', [])
-    if good_progress:
-        st.markdown('<div class="alert-success">', unsafe_allow_html=True)
-        st.success(f"✅ Bonne progression sur {len(good_progress)} exercice(s)")
-        for exercise in good_progress[:2]:  # Afficher max 2 exercices
-            st.write(f"• {exercise}")
-        st.markdown('</div>', unsafe_allow_html=True)
+    if exercises_with_plateau:
+        # Alerte principale avec style d'urgence
+        st.error("🚨 **ALERTE PLATEAU DÉTECTÉE**")
+        
+        # Métriques rapides
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Exercices en plateau", len(exercises_with_plateau), delta_color="inverse")
+        
+        with col2:
+            total_exercises = dashboard_data.get('total_exercises', 0)
+            if total_exercises > 0:
+                plateau_percentage = (len(exercises_with_plateau) / total_exercises) * 100
+                st.metric("% d'exercices en plateau", f"{plateau_percentage:.1f}%", delta_color="inverse")
+            else:
+                st.metric("% d'exercices en plateau", "N/A")
+        
+        with col3:
+            st.metric("Niveau d'alerte", 
+                     "🔴 Critique" if len(exercises_with_plateau) >= 3 else "🟡 Modéré" if len(exercises_with_plateau) == 2 else "🟠 Faible")
+        
+        # Message d'alerte contextuel
+        if len(exercises_with_plateau) >= 3:
+            st.warning("""
+            **🔄 Programme complet à revoir** - Plus de 50% de vos exercices sont en plateau.
+            
+            **Actions immédiates recommandées :**
+            - Changez complètement votre programme d'entraînement
+            - Intégrez de nouveaux exercices et variations
+            - Considérez une période de deload ou de récupération
+            """)
+        elif len(exercises_with_plateau) == 2:
+            st.info("""
+            **⚖️ Ajustement modéré nécessaire** - 2 exercices en plateau détectés.
+            
+            **Actions recommandées :**
+            - Variez les rep ranges et intensités
+            - Ajoutez des techniques d'intensification
+            - Modifiez l'ordre des exercices
+            """)
+        else:
+            st.info("""
+            **🎯 Ajustement ciblé** - 1 exercice en plateau détecté.
+            
+            **Actions recommandées :**
+            - Variez les paramètres de l'exercice
+            - Ajoutez des variations
+            - Considérez une progression plus lente
+            """)
+        
+        # Liste des exercices en plateau
+        st.markdown(f"**📋 Exercices en plateau :** {', '.join(exercises_with_plateau)}")
+        
+        # Bouton pour voir l'analyse détaillée
+        if st.button("🔍 Voir l'analyse détaillée des plateaux", type="primary"):
+            st.session_state.show_plateau_analysis = True
+            st.rerun()
+    else:
+        # Aucun plateau détecté - afficher un message de succès
+        st.success("🎉 **Aucun plateau détecté !** Votre progression est régulière.")
+        
+        # Métriques positives
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            total_exercises = dashboard_data.get('total_exercises', 0)
+            st.metric("Total exercices", total_exercises, delta_color="normal")
+        
+        with col2:
+            weekly_frequency = dashboard_data.get('weekly_frequency', 0)
+            st.metric("Fréquence hebdomadaire", f"{weekly_frequency}/sem", delta_color="normal")
+        
+        with col3:
+            consistency_score = dashboard_data.get('consistency_score', 0)
+            st.metric("Score de régularité", f"{consistency_score:.1f}", delta_color="normal")
+    
+    # Alertes sur la fréquence d'entraînement
+    weekly_frequency = dashboard_data.get('weekly_frequency', 0)
+    if weekly_frequency < 2:
+        st.warning("""
+        **📉 Fréquence d'entraînement faible** - Moins de 2 sessions par semaine.
+        
+        **Recommandations :**
+        - Augmentez progressivement la fréquence
+        - Planifiez vos sessions à l'avance
+        - Commencez par des sessions courtes mais régulières
+        """)
+    
+    # Alertes sur la régularité
+    consistency_score = dashboard_data.get('consistency_score', 0)
+    if consistency_score < 0.6:
+        st.warning("""
+        **🎯 Régularité d'entraînement à améliorer** - Score de régularité faible.
+        
+        **Recommandations :**
+        - Établissez une routine fixe
+        - Utilisez des rappels et planifications
+        - Commencez par des objectifs modestes
+        """)
+    
+
 
 def display_metric_card(title: str, value: str, delta: Optional[str] = None, help_text: str = "", icon: str = "📊"):
     """Affiche une carte de métrique personnalisée"""

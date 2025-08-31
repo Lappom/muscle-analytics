@@ -448,11 +448,11 @@ class DatabaseManager:
     def _insert_session_with_cursor(self, cursor, date: date, start_time: Optional[str] = None, 
                                    training_name: Optional[str] = None, notes: Optional[str] = None) -> int:
         """Version interne qui utilise un cursor existant"""
-        # Vérifier si une session existe déjà
+        # Vérifier si une session existe déjà (même date et training_name)
         cursor.execute("""
             SELECT id FROM sessions 
-            WHERE date = %s AND start_time = %s AND training_name = %s
-        """, (date, start_time, training_name))
+            WHERE date = %s AND training_name = %s
+        """, (date, training_name))
         
         existing = cursor.fetchone()
         if existing:
@@ -523,20 +523,24 @@ class DatabaseManager:
         try:
             with self.get_connection() as conn:
                 with conn.cursor() as cursor:
-                    # Grouper par sessions (date + training + time)
-                    session_groups = df.groupby(['date', 'training', 'time'], dropna=False)
+                    # Grouper par sessions (date + training uniquement)
+                    # L'heure de chaque série ne doit pas créer de sessions séparées
+                    session_groups = df.groupby(['date', 'training'], dropna=False)
                     
-                    for (session_date, training_name, start_time), session_data in session_groups:
+                    for (session_date, training_name), session_data in session_groups:
                         try:
                             # Convertir la date si nécessaire
                             if isinstance(session_date, str):
                                 session_date = pd.to_datetime(session_date).date()
                             
+                            # Utiliser la première heure de la session comme start_time
+                            first_time = session_data['time'].iloc[0] if 'time' in session_data.columns and not session_data['time'].isna().all() else None
+                            
                             # Insérer la session avec la même connexion/transaction
                             session_id = self._insert_session_with_cursor(
                                 cursor, 
                                 date=session_date,
-                                start_time=start_time if pd.notna(start_time) else None,
+                                start_time=first_time if pd.notna(first_time) else None,
                                 training_name=training_name if pd.notna(training_name) else None
                             )
                             
