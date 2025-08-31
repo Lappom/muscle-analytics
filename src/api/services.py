@@ -452,14 +452,18 @@ class AnalyticsService:
         if not pr_data.empty:
             pr_dict = pr_data.set_index('exercise').to_dict('index')
         
-        # Détection de plateaux
+        # Détection de plateaux et calcul des tendances de progression
         try:
             plateau_data = self.feature_calculator.progression_analyzer.detect_plateaus(df, 'volume')
             plateau_exercises = set()
             if not plateau_data.empty and 'exercise' in plateau_data.columns:
                 plateau_exercises = set(plateau_data[plateau_data.get('plateau_detected', False) == True]['exercise'].unique())
+            
+            # Calculer les tendances de progression avec pente
+            progression_trends = self.feature_calculator.progression_analyzer.calculate_volume_progression(df, sessions_df)
         except Exception:
             plateau_exercises = set()
+            progression_trends = pd.DataFrame()
         
         # Groupement par exercice
         progression_stats = []
@@ -492,6 +496,14 @@ class AnalyticsService:
             if exercise_name in pr_dict:
                 days_since_last_pr = pr_dict[exercise_name].get('days_since_last_pr')
             
+            # Extraire la pente de progression (trend_slope)
+            trend_slope = None
+            if not progression_trends.empty:
+                exercise_trend_data = progression_trends[progression_trends['exercise'] == exercise_name]
+                if not exercise_trend_data.empty:
+                    # Prendre la pente de la dernière session
+                    trend_slope = exercise_trend_data['trend_slope'].iloc[-1] if 'trend_slope' in exercise_trend_data.columns else None
+            
             if not exercise_data.empty:
                 progression_stats.append(ProgressionStats(
                     exercise=exercise_name,
@@ -500,7 +512,8 @@ class AnalyticsService:
                     volume_trend_7d=volume_trend_7d,
                     volume_trend_30d=volume_trend_30d,
                     plateau_detected=plateau_detected,
-                    days_since_last_pr=days_since_last_pr
+                    days_since_last_pr=days_since_last_pr,
+                    trend_slope=trend_slope
                 ))
         
         return progression_stats

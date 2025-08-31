@@ -9,7 +9,7 @@ import numpy as np
 from typing import Dict, List, Optional
 
 from ..services.api_client import get_api_client
-from ..utils import format_weight
+from ..utils import format_weight, create_progress_trend_chart
 
 def _display_trend_metric(label: str, value: float, filters: Dict):
     """Affiche une métrique de tendance avec formatage automatique"""
@@ -239,6 +239,10 @@ def _display_overall_progression_charts(df_progression: pd.DataFrame, filters: D
     with col2:
         _display_volume_trends_chart(df_progression, filters)
     
+    # Nouveau graphique scatter des tendances de progression
+    st.subheader("📊 Analyse des tendances de progression par exercice")
+    _display_progress_trend_scatter_chart(df_progression, filters)
+    
     # Graphiques complémentaires
     _display_sessions_distribution_chart(df_progression, filters)
     _display_plateau_analysis_chart(df_progression, filters)
@@ -247,28 +251,120 @@ def _display_overall_progression_charts(df_progression: pd.DataFrame, filters: D
     _display_plateau_alerts(df_progression)
 
 def _display_plateau_alerts(df_progression: pd.DataFrame):
-    """Affiche les alertes de plateau"""
+    """Affiche les alertes de plateau avec recommandations détaillées"""
     plateaus = df_progression[df_progression.get('plateau_detected', False) == True]
+    
     if not plateaus.empty:
-        st.warning("⚠️ Exercices en plateau détectés")
+        # Alerte principale avec icône et style
+        st.error("🚨 **ALERTE PLATEAU DÉTECTÉE**")
+        st.markdown("""
+        **Plusieurs exercices semblent être en plateau de progression.**
+        Voici une analyse détaillée et des recommandations pour relancer votre progression.
+        """)
         
+        # Métriques des plateaux
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("Exercices en plateau", len(plateaus), delta=f"+{len(plateaus)}", delta_color="inverse")
+        
+        with col2:
+            avg_sessions = plateaus['total_sessions'].mean()
+            st.metric("Sessions moyennes", f"{avg_sessions:.1f}")
+        
+        with col3:
+            plateau_percentage = (len(plateaus) / len(df_progression)) * 100
+            st.metric("% d'exercices en plateau", f"{plateau_percentage:.1f}%", delta_color="inverse")
+        
+        # Tableau détaillé des plateaux
+        st.subheader("📋 Détail des exercices en plateau")
         plateau_data = []
         for _, exercise in plateaus.iterrows():
             days_since_pr = exercise.get('days_since_last_pr', 'N/A')
+            trend = exercise.get('progression_trend', 'Inconnue')
+            
             plateau_data.append({
                 'Exercice': exercise['exercise'],
                 'Sessions': exercise['total_sessions'],
-                'Jours depuis PR': f"{days_since_pr} jours" if days_since_pr != 'N/A' else 'Aucun PR'
+                'Tendance': trend,
+                'Jours depuis PR': f"{days_since_pr} jours" if days_since_pr != 'N/A' else 'Aucun PR',
+                'Niveau d\'alerte': '🔴 Critique' if days_since_pr and days_since_pr > 30 else '🟡 Modéré'
             })
         
         if plateau_data:
-            st.dataframe(pd.DataFrame(plateau_data), use_container_width=True)
-    else:
-        st.success("✅ Aucun plateau détecté - excellente progression !")
-        st.markdown("""
-        **Votre progression semble optimale !** 🎯
+            df_plateau = pd.DataFrame(plateau_data)
+            st.dataframe(df_plateau, use_container_width=True)
         
-        Continuez votre programme actuel et surveillez régulièrement vos performances.
+        # Recommandations personnalisées
+        st.subheader("💡 Recommandations pour relancer la progression")
+        
+        # Recommandations basées sur le nombre de plateaux
+        if len(plateaus) >= 3:
+            st.warning("""
+            **🔄 Programme complet à revoir** - Plus de 50% de vos exercices sont en plateau.
+            
+            **Actions recommandées :**
+            - Changez complètement votre programme d'entraînement
+            - Intégrez de nouveaux exercices et variations
+            - Considérez une période de deload ou de récupération
+            - Consultez un coach pour un programme personnalisé
+            """)
+        elif len(plateaus) == 2:
+            st.info("""
+            **⚖️ Ajustement modéré nécessaire** - 2 exercices en plateau détectés.
+            
+            **Actions recommandées :**
+            - Variez les rep ranges et intensités
+            - Ajoutez des techniques d'intensification (drop-sets, super-sets)
+            - Modifiez l'ordre des exercices
+            - Intégrez des exercices de substitution
+            """)
+        else:
+            st.info("""
+            **🎯 Ajustement ciblé** - 1 exercice en plateau détecté.
+            
+            **Actions recommandées :**
+            - Variez les paramètres de l'exercice (reps, poids, tempo)
+            - Ajoutez des variations (grip différent, position modifiée)
+            - Considérez une progression plus lente mais constante
+            """)
+        
+        # Recommandations spécifiques par exercice
+        st.subheader("📝 Actions spécifiques par exercice")
+        for _, exercise in plateaus.iterrows():
+            exercise_name = exercise['exercise']
+            days_since_pr = exercise.get('days_since_last_pr', 0)
+            
+            if days_since_pr and days_since_pr > 30:
+                st.error(f"**{exercise_name}** - Plateau critique depuis {days_since_pr} jours")
+                st.markdown(f"""
+                - 🔄 **Changement d'exercice recommandé** pour {exercise_name}
+                - 📊 Analysez votre technique et form
+                - 🎯 Considérez un exercice de substitution
+                - 💪 Travaillez les muscles antagonistes
+                """)
+            else:
+                st.warning(f"**{exercise_name}** - Plateau modéré détecté")
+                st.markdown(f"""
+                - ⚡ Variez l'intensité et le volume
+                - 🔄 Changez l'ordre dans votre routine
+                - 📈 Progression plus lente mais constante
+                """)
+        
+    else:
+        st.success("✅ **Aucun plateau détecté - excellente progression !** 🎯")
+        st.markdown("""
+        **Votre progression semble optimale !** 
+        
+        **🎉 Continuez sur cette lancée :**
+        - Maintenez votre programme actuel
+        - Surveillez régulièrement vos performances
+        - Conservez la cohérence dans votre entraînement
+        - Célébrez vos progrès !
+        
+        **💡 Conseils pour maintenir la progression :**
+        - Variez légèrement les paramètres d'entraînement
+        - Maintenez une intensité progressive
+        - Écoutez votre corps et ajustez si nécessaire
         """)
 
 def create_muscle_radar_chart(muscle_balance: Dict[str, float], ideal_balance: Optional[List[float]] = None) -> go.Figure:
@@ -439,6 +535,48 @@ def _display_progression_trend_chart(df_progression: pd.DataFrame, filters: Dict
     
     fig_pie = apply_theme_to_chart(fig_pie, filters)
     st.plotly_chart(fig_pie, use_container_width=True)
+
+def _display_progress_trend_scatter_chart(df_progression: pd.DataFrame, filters: Dict):
+    """Affiche le graphique scatter des tendances de progression avec pente"""
+    if df_progression.empty:
+        st.info("Aucune donnée de progression disponible")
+        return
+    
+    # Vérifier si nous avons les colonnes nécessaires pour le graphique scatter
+    required_columns = ['total_sessions', 'trend_slope']
+    if not all(col in df_progression.columns for col in required_columns):
+        # Si les colonnes n'existent pas, essayer de les calculer
+        st.info("Calcul des tendances de progression en cours...")
+        return
+    
+    # Préparer les données pour create_progress_trend_chart
+    # Cette fonction attend une colonne 'trend_slope' et 'exercise'
+    scatter_data = df_progression[['exercise', 'total_sessions', 'trend_slope']].copy()
+    
+    # Filtrer les données valides
+    scatter_data = scatter_data.dropna(subset=['trend_slope'])
+    
+    if scatter_data.empty:
+        st.info("Aucune donnée de tendance de progression disponible")
+        return
+    
+    # Créer le graphique avec la fonction utils
+    fig = create_progress_trend_chart(scatter_data)
+    
+    # Appliquer le thème
+    fig = apply_theme_to_chart(fig, filters)
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Ajouter des informations contextuelles
+    st.markdown("""
+    **📊 Interprétation du graphique :**
+    - **Points verts** : Progression positive
+    - **Points rouges** : Progression négative  
+    - **Points gris** : Progression stable
+    - **Taille des points** : Nombre de sessions
+    - **Position Y** : Pente de progression (plus élevée = progression plus rapide)
+    """)
 
 def _display_volume_trends_chart(df_progression: pd.DataFrame, filters: Dict):
     """Affiche le graphique des tendances de volume"""

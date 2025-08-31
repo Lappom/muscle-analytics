@@ -116,13 +116,36 @@ def create_progress_trend_chart(data: pd.DataFrame) -> go.Figure:
             showarrow=False, font_size=16
         )
     
+    # Vérifier que les colonnes requises sont présentes
+    required_columns = ['exercise', 'total_sessions', 'trend_slope']
+    missing_columns = [col for col in required_columns if col not in data.columns]
+    
+    if missing_columns:
+        return go.Figure().add_annotation(
+            text=f"Colonnes manquantes: {', '.join(missing_columns)}",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, xanchor='center', yanchor='middle',
+            showarrow=False, font_size=16
+        )
+    
+    # Filtrer les données valides (sans NaN)
+    valid_data = data.dropna(subset=['trend_slope', 'total_sessions', 'exercise'])
+    
+    if valid_data.empty:
+        return go.Figure().add_annotation(
+            text="Aucune donnée valide disponible",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, xanchor='center', yanchor='middle',
+            showarrow=False, font_size=16
+        )
+    
     # Ajouter une colonne pour la couleur basée sur la tendance
-    data['trend_color'] = data['trend_slope'].apply(
+    valid_data['trend_color'] = valid_data['trend_slope'].apply(
         lambda x: 'Positive' if x > 0 else 'Négative' if x < 0 else 'Stable'
     )
     
     fig = px.scatter(
-        data,
+        valid_data,
         x='total_sessions',
         y='trend_slope',
         size='total_sessions',

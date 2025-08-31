@@ -9,6 +9,7 @@ import pandas as pd
 from pathlib import Path
 from typing import Dict, List, Optional, Union, Any
 import logging
+from .utils import TextCleaner
 
 logger = logging.getLogger(__name__)
 
@@ -224,8 +225,6 @@ class XMLParser:
         # Si pas de mapping trouvé, utilise le tag nettoyé
         return tag_cleaned if tag_cleaned else None
     
-from .utils import TextCleaner
-
     def _clean_tag_name(self, tag: str) -> str:
         """Nettoie un nom de tag XML"""
         return TextCleaner.clean_tag_name(tag)

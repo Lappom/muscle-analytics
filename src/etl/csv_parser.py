@@ -15,6 +15,8 @@ from typing import Dict, List, Optional, Union
 from datetime import datetime
 import logging
 
+from .utils import TextCleaner
+
 logger = logging.getLogger(__name__)
 
 
@@ -224,8 +226,6 @@ class CSVParser:
                 
         return df_renamed
     
-from .utils import TextCleaner
-
     def _clean_text(self, text: str) -> str:
         """Nettoie le texte (espaces insécables, accents, etc.)"""
         return TextCleaner.clean_text(text)

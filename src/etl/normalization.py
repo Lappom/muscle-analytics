@@ -11,6 +11,8 @@ from typing import Dict, List, Optional, Union, Tuple
 from datetime import datetime, time
 import logging
 
+from .utils import TextCleaner
+
 logger = logging.getLogger(__name__)
 
 
@@ -296,8 +298,6 @@ class DataNormalizer:
         cleaned = self._clean_text(str(text_value))
         return cleaned if cleaned else None
     
-from .utils import TextCleaner
-
     def _clean_text(self, text: str) -> str:
         """Nettoie un texte (espaces insécables, trim)"""
         return TextCleaner.clean_text(text)
