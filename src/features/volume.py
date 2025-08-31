@@ -69,8 +69,8 @@ class VolumeCalculator:
         if 'volume' not in df.columns:
             df = self.calculate_set_volume(df)
         
-        # Filtrer les sets non-skipped et de type 'principale'
-        mask = (df['skipped'] != True) & (df['series_type'] == 'principale')
+        # Filtrer les sets non-skipped et de type 'working_set'
+        mask = (df['skipped'] != True) & (df['series_type'] == 'working_set')
         working_sets = df[mask].copy()
         
         if group_by_exercise:
@@ -141,7 +141,7 @@ class VolumeCalculator:
         df_with_dates['week'] = df_with_dates['date'].dt.to_period(f'W-{start_day}')
         
         # Filtrer les sets principaux
-        mask = (df_with_dates['skipped'] != True) & (df_with_dates['series_type'] == 'principale')
+        mask = (df_with_dates['skipped'] != True) & (df_with_dates['series_type'] == 'working_set')
         working_sets = df_with_dates[mask].copy()
         
         # Volume par semaine et par exercice
@@ -188,7 +188,7 @@ class VolumeCalculator:
         df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
         
         # Filtrer les sets principaux
-        mask = (df_with_dates['skipped'] != True) & (df_with_dates['series_type'] == 'principale')
+        mask = (df_with_dates['skipped'] != True) & (df_with_dates['series_type'] == 'working_set')
         working_sets = df_with_dates[mask].copy()
         
         # Volume quotidien par exercice
@@ -243,7 +243,7 @@ class VolumeCalculator:
                                                           sessions_df=sessions_df)
         
         # Statistiques générales
-        mask = (df_with_volume['skipped'] != True) & (df_with_volume['series_type'] == 'principale')
+        mask = (df_with_volume['skipped'] != True) & (df_with_volume['series_type'] == 'working_set')
         working_sets = df_with_volume[mask]
         
         summary = {

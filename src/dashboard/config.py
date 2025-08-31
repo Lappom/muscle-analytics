@@ -6,7 +6,7 @@ import os
 from typing import Dict, List
 
 # Configuration de l'API
-API_BASE_URL = os.getenv("API_BASE_URL", "https://localhost:8000")
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 API_TIMEOUT = int(os.getenv("API_TIMEOUT", "30"))
 
 # Configuration du dashboard

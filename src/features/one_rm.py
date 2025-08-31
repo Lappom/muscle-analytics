@@ -218,7 +218,7 @@ class OneRMCalculator:
         
         # Filtrer les sets principaux avec données valides
         mask = (
-            (df_result['series_type'] == 'principale') &
+            (df_result['series_type'] == 'working_set') &
             (df_result['skipped'] != True) &
             (df_result[weight_col].notna()) &
             (df_result[reps_col].notna()) &

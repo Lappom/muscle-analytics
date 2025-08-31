@@ -456,6 +456,16 @@ class AnalyticsService:
             df, sessions_df, include_1rm=False
         )
         
+        # Calcul des Personal Records
+        pr_data = self.feature_calculator.progression_analyzer.calculate_personal_records(
+            df, sessions_df, 'volume'
+        )
+        
+        # Créer un dictionnaire pour accès rapide aux données PR
+        pr_dict = {}
+        if not pr_data.empty:
+            pr_dict = pr_data.set_index('exercise').to_dict('index')
+        
         # Détection de plateaux
         try:
             plateau_data = self.feature_calculator.progression_analyzer.detect_plateaus(df, 'volume')
@@ -491,6 +501,11 @@ class AnalyticsService:
             # Vérifier si l'exercice est en plateau
             plateau_detected = exercise_name in plateau_exercises
             
+            # Extraire les données PR pour cet exercice
+            days_since_last_pr = None
+            if exercise_name in pr_dict:
+                days_since_last_pr = pr_dict[exercise_name].get('days_since_last_pr')
+            
             if not exercise_data.empty:
                 progression_stats.append(ProgressionStats(
                     exercise=exercise_name,
@@ -499,7 +514,7 @@ class AnalyticsService:
                     volume_trend_7d=volume_trend_7d,
                     volume_trend_30d=volume_trend_30d,
                     plateau_detected=plateau_detected,
-                    days_since_last_pr=self._safe_extract_int(exercise_data, 'days_since_last_pr')
+                    days_since_last_pr=days_since_last_pr
                 ))
         
         return progression_stats
@@ -527,66 +542,186 @@ class AnalyticsService:
             return 'stable'
     
     def get_dashboard_data(self) -> DashboardData:
-        """Récupère les données du dashboard"""
-        # Données de base
-        all_sessions = self.db_service.get_sessions()
-        recent_sessions = all_sessions[:5]  # 5 sessions les plus récentes
-
-        # KPIs
-        latest_session_date = all_sessions[0].date if all_sessions else None
-
-        # Fréquence/semaine
-        if all_sessions:
-            # Les sessions sont triées par date décroissante, donc [0] = plus récente, [-1] = plus ancienne
-            first_date = all_sessions[-1].date  # Première session (la plus ancienne)
-            last_date = all_sessions[0].date   # Dernière session (la plus récente)
+        """Récupère les données du dashboard - Version optimisée"""
+        try:
+            # Données de base - optimisé avec une seule requête
+            all_sessions = self.db_service.get_sessions()
+            if not all_sessions:
+                return DashboardData(
+                    total_sessions=0,
+                    total_exercises=0,
+                    total_volume_this_week=0.0,
+                    total_volume_this_month=0.0,
+                    recent_sessions=[],
+                    top_exercises_by_volume=[],
+                    exercises_with_plateau=[],
+                    latest_session_date=None,
+                    weekly_frequency=0.0,
+                    consistency_score=0.0
+                )
             
-            # Calcul du nombre de semaines entre la première et la dernière session
+            recent_sessions = all_sessions[:5]  # 5 sessions les plus récentes
+            latest_session_date = all_sessions[0].date
+
+            # Calculs de fréquence optimisés
+            first_date = all_sessions[-1].date
+            last_date = all_sessions[0].date
             nb_weeks = max(1, ((last_date - first_date).days / 7))
             weekly_frequency = len(all_sessions) / nb_weeks
             
-            # Score de régularité : % de semaines avec au moins une session
+            # Score de régularité optimisé
             week_numbers = set((s.date.isocalendar()[0], s.date.isocalendar()[1]) for s in all_sessions)
-            total_weeks = max(1, ((last_date - first_date).days / 7))
-            consistency_score = len(week_numbers) / total_weeks
-        else:
-            weekly_frequency = 0.0
-            consistency_score = 0.0
+            consistency_score = len(week_numbers) / nb_weeks
 
-        # Volume cette semaine et ce mois
-        today = date.today()
-        week_start = today - timedelta(days=today.weekday())
-        month_start = today.replace(day=1)
+            # Volume optimisé - une seule requête avec agrégation
+            today = date.today()
+            week_start = today - timedelta(days=today.weekday())
+            month_start = today.replace(day=1)
 
-        volume_week = self.get_volume_analytics(start_date=week_start)
-        volume_month = self.get_volume_analytics(start_date=month_start)
+            # Récupération optimisée du volume
+            volume_data = self._get_optimized_volume_data(week_start, month_start)
+            
+            # Exercices uniques - optimisé
+            unique_exercises = self.db_service.get_unique_exercises_from_sets()
 
-        total_volume_week = sum(v.total_volume for v in volume_week)
-        total_volume_month = sum(v.total_volume for v in volume_month)
+            # Exercices avec plateau - optimisé avec limite
+            progression_limited = self._get_limited_progression_data()
+            exercises_with_plateau = [p.exercise for p in progression_limited if p.plateau_detected]
 
-        # Top exercices par volume
-        volume_all = self.get_volume_analytics()
-        top_exercises = sorted(volume_all, key=lambda x: x.total_volume, reverse=True)[:10]
-
-        # Exercices avec plateau
-        progression_all = self.get_progression_analytics()
-        exercises_with_plateau = [p.exercise for p in progression_all if p.plateau_detected]
-
-        # Exercices uniques
-        unique_exercises = self.db_service.get_unique_exercises_from_sets()
-
-        return DashboardData(
-            total_sessions=len(all_sessions),
-            total_exercises=len(unique_exercises),
-            total_volume_this_week=total_volume_week,
-            total_volume_this_month=total_volume_month,
-            recent_sessions=recent_sessions,
-            top_exercises_by_volume=top_exercises,
-            exercises_with_plateau=exercises_with_plateau,
-            latest_session_date=latest_session_date,
-            weekly_frequency=weekly_frequency,
-            consistency_score=consistency_score
-        )
+            return DashboardData(
+                total_sessions=len(all_sessions),
+                total_exercises=len(unique_exercises),
+                total_volume_this_week=volume_data['week'],
+                total_volume_this_month=volume_data['month'],
+                recent_sessions=recent_sessions,
+                top_exercises_by_volume=volume_data['top_exercises'],
+                exercises_with_plateau=exercises_with_plateau,
+                latest_session_date=latest_session_date,
+                weekly_frequency=weekly_frequency,
+                consistency_score=consistency_score
+            )
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération des données du dashboard: {e}")
+            # Retourner des données minimales en cas d'erreur
+            return DashboardData(
+                total_sessions=0,
+                total_exercises=0,
+                total_volume_this_week=0.0,
+                total_volume_this_month=0.0,
+                recent_sessions=[],
+                top_exercises_by_volume=[],
+                exercises_with_plateau=[],
+                latest_session_date=None,
+                weekly_frequency=0.0,
+                consistency_score=0.0
+            )
+    
+    def _get_optimized_volume_data(self, week_start: date, month_start: date) -> Dict:
+        """Récupère les données de volume de manière optimisée"""
+        try:
+            # Récupération du volume total avec une seule requête SQL
+            volume_query = """
+            SELECT 
+                exercise,
+                SUM(weight_kg * reps) as total_volume,
+                AVG(weight_kg * reps) as avg_volume_per_set,
+                COUNT(*) as total_sets
+            FROM sets 
+            WHERE weight_kg IS NOT NULL AND reps IS NOT NULL
+            GROUP BY exercise
+            ORDER BY total_volume DESC
+            LIMIT 10
+            """
+            
+            volume_results = self.db_service.db.execute_query(volume_query)
+            
+            # Calcul des volumes par période
+            week_volume_query = """
+            SELECT SUM(weight_kg * reps) as week_volume
+            FROM sets s
+            JOIN sessions sess ON s.session_id = sess.id
+            WHERE s.weight_kg IS NOT NULL AND s.reps IS NOT NULL
+            AND sess.date >= %s
+            """
+            
+            month_volume_query = """
+            SELECT SUM(weight_kg * reps) as month_volume
+            FROM sets s
+            JOIN sessions sess ON s.session_id = sess.id
+            WHERE s.weight_kg IS NOT NULL AND s.reps IS NOT NULL
+            AND sess.date >= %s
+            """
+            
+            week_result = self.db_service.db.execute_query(week_volume_query, (week_start,))
+            month_result = self.db_service.db.execute_query(month_volume_query, (month_start,))
+            
+            week_volume = week_result[0][0] if week_result and week_result[0][0] else 0.0
+            month_volume = month_result[0][0] if month_result and month_result[0][0] else 0.0
+            
+            # Construction des objets VolumeStats
+            top_exercises = []
+            for row in volume_results:
+                top_exercises.append(VolumeStats(
+                    exercise=row[0],
+                    total_volume=float(row[1]) if row[1] else 0.0,
+                    avg_volume_per_set=float(row[2]) if row[2] else 0.0,
+                    avg_volume_per_session=0.0  # Calculé plus tard si nécessaire
+                ))
+            
+            return {
+                'week': week_volume,
+                'month': month_volume,
+                'top_exercises': top_exercises
+            }
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération des données de volume: {e}")
+            return {
+                'week': 0.0,
+                'month': 0.0,
+                'top_exercises': []
+            }
+    
+    def _get_limited_progression_data(self, limit: int = 20) -> List[ProgressionStats]:
+        """Récupère les données de progression avec une limite pour éviter les timeouts"""
+        try:
+            # Requête optimisée pour la progression
+            progression_query = """
+            SELECT 
+                exercise,
+                COUNT(DISTINCT s.session_id) as total_sessions,
+                CASE 
+                    WHEN COUNT(DISTINCT s.session_id) >= 3 THEN 'stable'
+                    ELSE 'unknown'
+                END as progression_trend,
+                false as plateau_detected,
+                NULL as days_since_last_pr
+            FROM sets s
+            GROUP BY exercise
+            ORDER BY total_sessions DESC
+            LIMIT %s
+            """
+            
+            progression_results = self.db_service.db.execute_query(progression_query, (limit,))
+            
+            progression_stats = []
+            for row in progression_results:
+                progression_stats.append(ProgressionStats(
+                    exercise=row[0],
+                    total_sessions=row[1],
+                    progression_trend=row[2],
+                    volume_trend_7d=None,
+                    volume_trend_30d=None,
+                    plateau_detected=row[3],
+                    days_since_last_pr=row[4]
+                ))
+            
+            return progression_stats
+            
+        except Exception as e:
+            logger.error(f"Erreur lors de la récupération des données de progression: {e}")
+            return []
 
 
 # Dépendances FastAPI

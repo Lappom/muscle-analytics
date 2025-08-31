@@ -57,7 +57,7 @@ class ProgressionAnalyzer:
             df_with_dates['date'] = df_with_dates['session_id']  # Proxy temporel
         
         # Filtrer les sets principaux
-        mask = (df_with_dates['series_type'] == 'principale') & (df_with_dates['skipped'] != True)
+        mask = (df_with_dates['series_type'] == 'working_set') & (df_with_dates['skipped'] != True)
         working_sets = df_with_dates[mask].copy()
         
         # Progression par exercice
@@ -154,7 +154,7 @@ class ProgressionAnalyzer:
             df_with_dates['date'] = df_with_dates['session_id']
         
         # Filtrer les sets principaux
-        mask = (df_with_dates['series_type'] == 'principale') & (df_with_dates['skipped'] != True)
+        mask = (df_with_dates['series_type'] == 'working_set') & (df_with_dates['skipped'] != True)
         working_sets = df_with_dates[mask].copy()
         
         # Intensité par exercice et séance
@@ -443,6 +443,95 @@ class ProgressionAnalyzer:
             )
         
         return recommendations
+    
+    def calculate_personal_records(self, df: pd.DataFrame,
+                                 sessions_df: Optional[pd.DataFrame] = None,
+                                 metric_col: str = 'volume') -> pd.DataFrame:
+        """
+        Calcule les Personal Records (PR) et les jours depuis le dernier PR.
+        
+        Args:
+            df: DataFrame avec données d'entraînement
+            sessions_df: DataFrame des séances avec dates
+            metric_col: Colonne métrique à analyser (volume, weight_kg, 1rm_epley)
+            
+        Returns:
+            DataFrame avec informations sur les PR par exercice
+        """
+        if df.empty:
+            return pd.DataFrame()
+        
+        # Assurer la présence de la colonne métrique
+        if metric_col not in df.columns:
+            if metric_col == 'volume':
+                df = df.copy()
+                df['volume'] = df['reps'].fillna(0) * df['weight_kg'].fillna(0)
+            else:
+                return pd.DataFrame()
+        
+        # Joindre avec les dates si disponible
+        if sessions_df is not None:
+            df_with_dates = df.merge(
+                sessions_df[['id', 'date']], 
+                left_on='session_id', 
+                right_on='id', 
+                how='left'
+            )
+            df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
+        else:
+            df_with_dates = df.copy()
+            # Si pas de dates, utiliser une date arbitraire basée sur session_id
+            if 'session_id' in df_with_dates.columns:
+                unique_sessions = sorted(df_with_dates['session_id'].unique())
+                session_to_date = {sid: pd.Timestamp('2024-01-01') + pd.Timedelta(days=i) 
+                                 for i, sid in enumerate(unique_sessions)}
+                df_with_dates['date'] = df_with_dates['session_id'].map(session_to_date)
+            else:
+                df_with_dates['date'] = pd.Timestamp.now()
+        
+        # Filtrer les sets de travail non skippés
+        mask = (df_with_dates['series_type'] == 'working_set') & (df_with_dates['skipped'] != True)
+        working_sets = df_with_dates[mask].copy()
+        
+        pr_data = []
+        current_date = pd.Timestamp.now()
+        
+        for exercise in working_sets['exercise'].unique():
+            exercise_data = working_sets[working_sets['exercise'] == exercise].copy()
+            exercise_data = exercise_data.sort_values('date')
+            
+            if exercise_data.empty:
+                continue
+            
+            # Trouver le maximum de la métrique
+            max_value = exercise_data[metric_col].max()
+            
+            # Trouver la date du dernier PR (dernière fois que le maximum a été atteint)
+            pr_rows = exercise_data[exercise_data[metric_col] == max_value]
+            if not pr_rows.empty:
+                last_pr_date = pr_rows['date'].max()
+                days_since_pr = (current_date - last_pr_date).days
+            else:
+                last_pr_date = None
+                days_since_pr = None
+            
+            # Compter le nombre de PR (nombre de fois où un nouveau record a été établi)
+            exercise_data_sorted = exercise_data.sort_values('date')
+            cumulative_max = exercise_data_sorted[metric_col].cummax()
+            pr_count = (exercise_data_sorted[metric_col] == cumulative_max).sum()
+            
+            pr_data.append({
+                'exercise': exercise,
+                'current_pr': max_value,
+                'last_pr_date': last_pr_date,
+                'days_since_last_pr': days_since_pr,
+                'total_pr_count': pr_count,
+                'first_session_date': exercise_data['date'].min(),
+                'latest_session_date': exercise_data['date'].max(),
+                'total_sessions': len(exercise_data['session_id'].unique())
+            })
+        
+        return pd.DataFrame(pr_data)
     
     def calculate_volume_trends(self, df: pd.DataFrame,
                               sessions_df: Optional[pd.DataFrame] = None,

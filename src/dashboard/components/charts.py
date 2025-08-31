@@ -255,6 +255,11 @@ def _display_plateau_alerts(df_progression: pd.DataFrame):
             st.dataframe(pd.DataFrame(plateau_data), use_container_width=True)
     else:
         st.success("✅ Aucun plateau détecté - excellente progression !")
+        st.markdown("""
+        **Votre progression semble optimale !** 🎯
+        
+        Continuez votre programme actuel et surveillez régulièrement vos performances.
+        """)
 
 def create_muscle_radar_chart(muscle_balance: Dict[str, float], ideal_balance: Optional[List[float]] = None) -> go.Figure:
     """Crée un graphique radar pour l'équilibre musculaire"""
@@ -509,7 +514,7 @@ def _display_sessions_distribution_chart(df_progression: pd.DataFrame, filters: 
     st.plotly_chart(fig_bar, use_container_width=True)
 
 def _display_plateau_analysis_chart(df_progression: pd.DataFrame, filters: Dict):
-    """Affiche l'analyse des plateaux avec temps depuis dernier PR"""
+    """Affiche l'analyse des plateaux avec temps depuis dernier PR - Version améliorée"""
     if df_progression.empty:
         return
     
@@ -517,12 +522,22 @@ def _display_plateau_analysis_chart(df_progression: pd.DataFrame, filters: Dict)
     pr_data = df_progression[df_progression['days_since_last_pr'].notna()].copy()
     
     if pr_data.empty:
-        st.info("Aucune donnée de PR disponible pour l'analyse des plateaux")
+        st.info("📊 Aucune donnée de PR disponible pour l'analyse des plateaux")
+        st.markdown("""
+        **Les Personal Records (PR) sont calculés automatiquement à partir de vos données d'entraînement.**
+        
+        Pour voir l'analyse des PR, assurez-vous d'avoir :
+        - Au moins quelques sessions d'entraînement enregistrées
+        - Des données de volume (répétitions × poids) complètes
+        - Des exercices pratiqués régulièrement
+        
+        Les PR seront affichés dès que suffisamment de données seront disponibles.
+        """)
         return
     
-    st.subheader("Analyse des Personal Records (PR)")
+    st.subheader("🏆 Analyse des Personal Records (PR)")
     
-    # Créer des catégories de temps
+    # Créer des catégories de temps avec couleurs
     pr_data['pr_category'] = pd.cut(
         pr_data['days_since_last_pr'],
         bins=[0, 7, 30, 90, float('inf')],
@@ -533,16 +548,164 @@ def _display_plateau_analysis_chart(df_progression: pd.DataFrame, filters: Dict)
     category_counts = pr_data['pr_category'].value_counts().reset_index()
     category_counts.columns = ['Période', 'Nombre']
     
-    fig_pie = px.pie(
+    # Couleurs par catégorie (vert = récent, rouge = ancien)
+    color_map = {
+        '< 1 semaine': '#2ecc71',      # Vert
+        '1-4 semaines': '#f39c12',     # Orange
+        '1-3 mois': '#e67e22',         # Rouge-orange
+        '> 3 mois': '#e74c3c'          # Rouge
+    }
+    
+    # Graphique en barres horizontal avec couleurs
+    fig_bar = px.bar(
         category_counts,
-        values='Nombre',
-        names='Période',
-        title="Temps écoulé depuis le dernier PR",
-        color_discrete_sequence=px.colors.qualitative.Set3
+        x='Nombre',
+        y='Période',
+        orientation='h',
+        title="📊 Répartition des Personal Records par ancienneté",
+        color='Période',
+        color_discrete_map=color_map,
+        labels={'Nombre': 'Nombre d\'exercices', 'Période': 'Temps depuis le PR'}
     )
     
-    fig_pie = apply_theme_to_chart(fig_pie, filters)
-    st.plotly_chart(fig_pie, use_container_width=True)
+    fig_bar.update_layout(
+        height=400,
+        showlegend=False,
+        xaxis_title="Nombre d'exercices",
+        yaxis_title="Temps écoulé depuis le PR"
+    )
+    
+    fig_bar.update_traces(
+        hovertemplate="<b>%{y}</b><br>Exercices: %{x}<extra></extra>"
+    )
+    
+    fig_bar = apply_theme_to_chart(fig_bar, filters)
+    st.plotly_chart(fig_bar, use_container_width=True)
+    
+
+    
+    # Graphique radar des PR par exercice (top 10)
+    st.subheader("🎯 Top 10 des exercices par PR")
+    
+    # Vérifier si current_pr existe, sinon utiliser days_since_last_pr
+    if 'current_pr' in pr_data.columns:
+        sort_column = 'current_pr'
+        top_pr = pr_data.nlargest(10, 'current_pr')
+        radar_values = top_pr['current_pr']
+        chart_title = "Personal Records par exercice (Top 10)"
+        value_name = 'Volume PR'
+    else:
+        # Si pas de current_pr, trier par jours depuis PR (plus récent = plus petit nombre)
+        sort_column = 'days_since_last_pr'
+        top_pr = pr_data.nsmallest(10, 'days_since_last_pr')
+        radar_values = top_pr['days_since_last_pr']
+        chart_title = "Jours depuis dernier PR par exercice (Top 10)"
+        value_name = 'Jours depuis PR'
+        st.info("ℹ️ Utilisation des jours depuis PR (plus récent = plus petit nombre)")
+    
+    fig_radar = go.Figure()
+    
+    fig_radar.add_trace(go.Scatterpolar(
+        r=radar_values,
+        theta=top_pr['exercise'],
+        fill='toself',
+        name=value_name,
+        line=dict(color='rgba(31, 119, 180, 0.8)', width=2),
+        fillcolor='rgba(31, 119, 180, 0.3)'
+    ))
+    
+    fig_radar.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, radar_values.max() * 1.1]
+            )),
+        showlegend=False,
+        title=chart_title,
+        height=500
+    )
+    
+    fig_radar = apply_theme_to_chart(fig_radar, filters)
+    st.plotly_chart(fig_radar, use_container_width=True)
+    
+    # Tableau détaillé des PR
+    st.subheader("📋 Détail des Personal Records")
+    
+    # Préparer les données pour le tableau
+    display_data = pr_data.copy()
+    
+    # Adapter selon les colonnes disponibles
+    if 'current_pr' in pr_data.columns:
+        display_data['PR_kg'] = display_data['current_pr'].round(1)
+        sort_column = 'current_pr'
+        ascending = False
+    else:
+        # Si pas de current_pr, créer une colonne factice et trier par jours
+        display_data['PR_kg'] = 'N/A'
+        sort_column = 'days_since_last_pr'
+        ascending = True  # Plus récent = plus petit nombre
+    
+    display_data['Jours_depuis_PR'] = display_data['days_since_last_pr']
+    
+    # Gérer last_pr_date si disponible
+    if 'last_pr_date' in pr_data.columns:
+        display_data['Dernier_PR'] = display_data['last_pr_date'].dt.strftime('%d/%m/%Y')
+    else:
+        display_data['Dernier_PR'] = 'N/A'
+    
+    # Trier selon la colonne disponible
+    display_data = display_data.sort_values(sort_column, ascending=ascending)
+    
+    # Sélectionner les colonnes à afficher (en vérifiant leur existence)
+    available_columns = []
+    column_names = []
+    
+    # Colonnes obligatoires
+    if 'exercise' in display_data.columns:
+        available_columns.append('exercise')
+        column_names.append('Exercice')
+    
+    if 'PR_kg' in display_data.columns:
+        available_columns.append('PR_kg')
+        column_names.append('PR (kg)')
+    
+    if 'Jours_depuis_PR' in display_data.columns:
+        available_columns.append('Jours_depuis_PR')
+        column_names.append('Jours depuis PR')
+    
+    if 'Dernier_PR' in display_data.columns:
+        available_columns.append('Dernier_PR')
+        column_names.append('Date dernier PR')
+    
+    # Colonnes optionnelles
+    if 'total_pr_count' in display_data.columns:
+        available_columns.append('total_pr_count')
+        column_names.append('Nombre PR')
+    
+    # Créer le DataFrame d'affichage
+    display_df = display_data[available_columns].copy()
+    display_df.columns = column_names
+    
+    # Appliquer des couleurs conditionnelles si la colonne 'Jours depuis PR' existe
+    if 'Jours depuis PR' in display_df.columns:
+        def color_days(val):
+            if pd.isna(val):
+                return 'background-color: lightgray'
+            elif val <= 7:
+                return 'background-color: #d4edda; color: #155724'  # Vert
+            elif val <= 30:
+                return 'background-color: #fff3cd; color: #856404'  # Jaune
+            elif val <= 90:
+                return 'background-color: #f8d7da; color: #721c24'  # Rouge-orange
+            else:
+                return 'background-color: #f5c6cb; color: #721c24'  # Rouge
+        
+        # Appliquer le style
+        styled_df = display_df.style.applymap(color_days, subset=['Jours depuis PR'])
+        st.dataframe(styled_df, use_container_width=True)
+    else:
+        # Afficher sans style si la colonne n'existe pas
+        st.dataframe(display_df, use_container_width=True)
 
 def _display_exercise_trend_analysis(exercise_data: pd.Series, filters: Dict):
     """Affiche l'analyse de tendance pour un exercice spécifique"""
