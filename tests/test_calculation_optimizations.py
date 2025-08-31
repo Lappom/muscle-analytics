@@ -149,7 +149,7 @@ class TestCalculationOptimizations:
         data_with_dates['date'] = pd.to_datetime(data_with_dates['date'])
         
         # Analyser la progression
-        result = self.prog_analyzer.analyze_volume_progression(data_with_dates)
+        result = self.prog_analyzer.calculate_volume_progression(data_with_dates)
         
         # Vérifier que le résultat n'est pas vide
         assert not result.empty, "Le résultat ne devrait pas être vide"
@@ -163,7 +163,7 @@ class TestCalculationOptimizations:
         """Test d'analyse de progression avec données vides."""
         empty_data = pd.DataFrame(columns=['session_id', 'exercise', 'series_type', 'reps', 'weight_kg', 'skipped', 'volume', 'date'])
         
-        result = self.prog_analyzer.analyze_volume_progression(empty_data)
+        result = self.prog_analyzer.calculate_volume_progression(empty_data)
         
         # Vérifier que le résultat est vide mais avec la bonne structure
         assert result.empty
@@ -187,7 +187,7 @@ class TestCalculationOptimizations:
         
         # Vérifier que le résultat n'est pas vide
         assert not result.empty, "Le résultat ne devrait pas être vide"
-        assert 'plateau_detected' in result.columns
+        assert 'plateau_indicator' in result.columns
         
         # Avec des données aussi stables, un plateau devrait être détecté
         if 'plateau_detected' in result.columns:
@@ -349,7 +349,7 @@ class TestCalculationOptimizations:
             )
             data_with_dates['date'] = pd.to_datetime(data_with_dates['date'])
             
-            progression_data = self.prog_analyzer.analyze_volume_progression(data_with_dates)
+            progression_data = self.prog_analyzer.calculate_volume_progression(data_with_dates)
             assert not progression_data.empty
             
             # Vérifier que toutes les données sont cohérentes

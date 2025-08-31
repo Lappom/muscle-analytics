@@ -356,7 +356,7 @@ class AnalyticsService:
             exercise=exercise, start_date=start_date, end_date=end_date
         )
         
-        if not sets:
+        if not sets or len(sets) == 0:
             return []
         
         df = self._sets_to_dataframe(sets)
@@ -393,7 +393,7 @@ class AnalyticsService:
             exercise=exercise, start_date=start_date, end_date=end_date
         )
         
-        if not sets:
+        if not sets or len(sets) == 0:
             return []
         
         df = self._sets_to_dataframe(sets)
@@ -439,7 +439,7 @@ class AnalyticsService:
             exercise=exercise, start_date=start_date, end_date=end_date
         )
         
-        if not sets:
+        if not sets or len(sets) == 0:
             return []
         
         df = self._sets_to_dataframe(sets)
