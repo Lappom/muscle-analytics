@@ -74,7 +74,7 @@ def demo_secure_test_config():
     print("""
     # Dans vos tests
     from test_config import setup_test_environment
-    from database import DatabaseManager
+    from src.database import DatabaseManager
     
     def setUp(self):
         db_config = setup_test_environment()

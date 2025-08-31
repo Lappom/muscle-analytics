@@ -69,6 +69,9 @@ class XMLParser:
             tree = self._parse_xml_file(file_path)
             root = tree.getroot()
             
+            if root is None:
+                raise XMLParserError(f"Racine XML vide dans {file_path}")
+            
             # Extraction des données
             data_records = self._extract_records(root)
             
@@ -93,7 +96,8 @@ class XMLParser:
     
     def _parse_xml_file(self, file_path: Path) -> ET.ElementTree:
         """Parse le fichier XML avec gestion des encodages"""
-        encodings = [self.encoding, 'utf-8', 'cp1252', 'iso-8859-1']
+        # Encodages à tester, incluant UTF-16 pour les fichiers avec BOM
+        encodings = [self.encoding, 'utf-8', 'utf-16', 'utf-16le', 'utf-16be', 'cp1252', 'iso-8859-1']
         
         for encoding in encodings:
             try:
@@ -107,13 +111,20 @@ class XMLParser:
                 logger.debug(f"XML lu avec l'encodage {encoding}")
                 return ET.ElementTree(tree)
                 
-            except (UnicodeDecodeError, ET.ParseError):
+            except (UnicodeDecodeError, ET.ParseError) as e:
+                logger.debug(f"Échec avec encodage {encoding}: {e}")
                 continue
                 
         raise XMLParserError(f"Impossible de parser le XML avec les encodages: {encodings}")
     
     def _clean_xml_content(self, content: str) -> str:
         """Nettoie le contenu XML"""
+        # Suppression du BOM UTF-16/UTF-8 si présent
+        if content.startswith('\ufeff'):
+            content = content[1:]
+        if content.startswith('ÿþ'):
+            content = content[2:]
+            
         # Suppression des caractères de contrôle problématiques
         content = content.replace('\x00', '')
         

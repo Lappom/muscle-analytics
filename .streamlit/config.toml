@@ -1,0 +1,24 @@
+[theme]
+# Force le thème clair par défaut pour l'application
+base = "light"
+
+# Harmonisation avec la charte du dashboard
+primaryColor = "#1f77b4"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f8f9fa"
+textColor = "#1a1a1a"
+
+[client]
+toolbarMode = "auto"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+# Augmenter les limites pour les gros fichiers
+maxUploadSize = 50
+maxMessageSize = 50
+
+[global]
+# Optimisation mémoire
+suppressDeprecationWarnings = true

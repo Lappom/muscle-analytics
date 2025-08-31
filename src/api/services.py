@@ -475,29 +475,50 @@ class AnalyticsService:
         # Données de base
         all_sessions = self.db_service.get_sessions()
         recent_sessions = all_sessions[:5]  # 5 sessions les plus récentes
-        
+
+        # KPIs
+        latest_session_date = all_sessions[0].date if all_sessions else None
+
+        # Fréquence/semaine
+        if all_sessions:
+            # Les sessions sont triées par date décroissante, donc [0] = plus récente, [-1] = plus ancienne
+            first_date = all_sessions[-1].date  # Première session (la plus ancienne)
+            last_date = all_sessions[0].date   # Dernière session (la plus récente)
+            
+            # Calcul du nombre de semaines entre la première et la dernière session
+            nb_weeks = max(1, ((last_date - first_date).days / 7))
+            weekly_frequency = len(all_sessions) / nb_weeks
+            
+            # Score de régularité : % de semaines avec au moins une session
+            week_numbers = set((s.date.isocalendar()[0], s.date.isocalendar()[1]) for s in all_sessions)
+            total_weeks = max(1, ((last_date - first_date).days / 7))
+            consistency_score = len(week_numbers) / total_weeks
+        else:
+            weekly_frequency = 0.0
+            consistency_score = 0.0
+
         # Volume cette semaine et ce mois
         today = date.today()
         week_start = today - timedelta(days=today.weekday())
         month_start = today.replace(day=1)
-        
+
         volume_week = self.get_volume_analytics(start_date=week_start)
         volume_month = self.get_volume_analytics(start_date=month_start)
-        
+
         total_volume_week = sum(v.total_volume for v in volume_week)
         total_volume_month = sum(v.total_volume for v in volume_month)
-        
+
         # Top exercices par volume
         volume_all = self.get_volume_analytics()
         top_exercises = sorted(volume_all, key=lambda x: x.total_volume, reverse=True)[:10]
-        
+
         # Exercices avec plateau
         progression_all = self.get_progression_analytics()
         exercises_with_plateau = [p.exercise for p in progression_all if p.plateau_detected]
-        
+
         # Exercices uniques
         unique_exercises = self.db_service.get_unique_exercises_from_sets()
-        
+
         return DashboardData(
             total_sessions=len(all_sessions),
             total_exercises=len(unique_exercises),
@@ -505,7 +526,10 @@ class AnalyticsService:
             total_volume_this_month=total_volume_month,
             recent_sessions=recent_sessions,
             top_exercises_by_volume=top_exercises,
-            exercises_with_plateau=exercises_with_plateau
+            exercises_with_plateau=exercises_with_plateau,
+            latest_session_date=latest_session_date,
+            weekly_frequency=weekly_frequency,
+            consistency_score=consistency_score
         )
 
 

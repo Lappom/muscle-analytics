@@ -2,10 +2,13 @@
 API principale FastAPI pour Muscle-Analytics
 """
 
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from datetime import date
+import tempfile
+from pathlib import Path
+import os
 
 from .models import (
     Session, Set, Exercise, VolumeStats, OneRMStats, 
@@ -13,6 +16,8 @@ from .models import (
     SessionWithSets
 )
 from .services import DatabaseService, AnalyticsService, get_database_service, get_analytics_service
+from src.etl.import_scripts import ETLImporter
+from src.database import get_database
 
 app = FastAPI(
     title="Muscle-Analytics API",
@@ -20,11 +25,17 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Configuration CORS
+# Configuration CORS (via variables d'environnement)
+_cors_origins = os.getenv("CORS_ALLOW_ORIGINS", "*")
+allow_origins = [o.strip() for o in _cors_origins.split(",")] if _cors_origins != "*" else ["*"]
+_allow_credentials_env = os.getenv("CORS_ALLOW_CREDENTIALS", "false").lower() in ("1", "true", "yes")
+# Si wildcard, forcer credentials à False (exigence des navigateurs)
+allow_credentials = False if allow_origins == ["*"] else _allow_credentials_env
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # À restreindre en production
-    allow_credentials=True,
+    allow_origins=allow_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -46,6 +57,9 @@ async def root():
                 "one_rm": "/analytics/one-rm",
                 "progression": "/analytics/progression",
                 "dashboard": "/analytics/dashboard"
+            },
+            "import": {
+                "upload_file": "/import/file"
             }
         }
     }
@@ -87,11 +101,9 @@ async def get_session_details(
             raise HTTPException(status_code=404, detail=f"Session avec ID {session_id} non trouvée")
         
         sets = db_service.get_sets(session_id=session_id)
-        
-        return SessionWithSets(
-            **session.model_dump(),
-            sets=sets
-        )
+        data = session.model_dump()
+        data["sets"] = sets
+        return SessionWithSets(**data)
     except HTTPException:
         raise
     except Exception as e:
@@ -266,6 +278,59 @@ async def get_dashboard_analytics(
     """Récupère les données pour le dashboard principal"""
     try:
         return analytics_service.get_dashboard_data()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# ENDPOINTS POUR L'IMPORT (CSV/XML)
+# =============================================================================
+
+@app.post("/import/file")
+async def import_training_file(
+    file: UploadFile = File(..., description="Fichier d'entraînement CSV ou XML"),
+    force: bool = Form(False, description="Forcer l'import en ignorant les doublons")
+):
+    """Importe un fichier CSV ou XML via multipart/form-data et insère les données en base.
+
+    Champs attendus:
+    - file: le fichier à importer (extensions .csv ou .xml)
+    - force: booléen optionnel pour ignorer les doublons
+    """
+    try:
+        filename = file.filename or "uploaded_file"
+        ext = Path(filename).suffix.lower()
+        if ext not in {".csv", ".xml"}:
+            raise HTTPException(status_code=415, detail=f"Format non supporté: {ext}. Utilisez .csv ou .xml")
+
+        # Écrire le contenu vers un fichier temporaire
+        tmp_path = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+                content = await file.read()
+                tmp.write(content)
+                tmp_path = tmp.name
+
+            importer = ETLImporter(db_manager=get_database())
+            results = importer.import_file(tmp_path, force_import=force)
+
+            # Réponse JSON normalisée
+            return {
+                "success": bool(results.get("success")),
+                "message": results.get("message"),
+                "file_name": filename,
+                "stats": results.get("stats", {}),
+            }
+        finally:
+            # Nettoyage du fichier temporaire
+            try:
+                if tmp_path and os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

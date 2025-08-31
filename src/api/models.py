@@ -125,6 +125,10 @@ class DashboardData(BaseModel):
     recent_sessions: List[Session]
     top_exercises_by_volume: List[VolumeStats]
     exercises_with_plateau: List[str]
+    # Ajout KPIs
+    latest_session_date: Optional[date] = None
+    weekly_frequency: float = 0.0
+    consistency_score: float = 0.0
     
     model_config = ConfigDict(from_attributes=True)
 
