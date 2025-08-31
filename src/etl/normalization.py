@@ -302,6 +302,12 @@ class DataNormalizer:
         """Nettoie un texte (espaces insécables, trim)"""
         return TextCleaner.clean_text(text)
     
+    def _calculate_1rm(self, row: pd.Series) -> float:
+        """Calcule le 1RM estimé selon la formule d'Epley"""
+        if row['skipped'] or row['reps'] <= 0 or row['weight_kg'] <= 0:
+            return 0.0
+        return row['weight_kg'] * (1 + row['reps'] / 30)
+    
     def _add_computed_features(self, df: pd.DataFrame) -> pd.DataFrame:
         """Ajoute des features calculées"""
         df = df.copy()
