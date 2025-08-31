@@ -144,10 +144,7 @@ class CSVParser:
         for encoding in encodings:
             for strategy in parsing_strategies:
                 try:
-                    # Vérification de la version de pandas pour compatibilité
                     pandas_version = pd.__version__
-                    
-                    # Pour pandas < 1.3.0, utiliser error_bad_lines au lieu de on_bad_lines
                     if pandas_version < '1.3.0':
                         strategy_copy = strategy.copy()
                         if 'on_bad_lines' in strategy_copy:
@@ -157,27 +154,20 @@ class CSVParser:
                                 strategy_copy['error_bad_lines'] = True
                             del strategy_copy['on_bad_lines']
                         strategy = strategy_copy
-                    
                     df = pd.read_csv(
                         file_path,
                         encoding=encoding,
                         **strategy
                     )
-                    
-                    # Vérification et nettoyage des colonnes avec BOM
+                    # Nettoyage BOM éventuel
                     if not df.empty and len(df.columns) > 0:
                         first_col = df.columns[0]
-                        # Détection et suppression du BOM UTF-16/UTF-8
                         if first_col.startswith('\ufeff') or first_col.startswith('ÿþ') or 'ÿþ' in first_col:
-                            logger.debug(f"BOM détecté dans la première colonne: {repr(first_col)}")
-                            # Nettoyage du nom de la première colonne
                             cleaned_first_col = first_col.replace('\ufeff', '').replace('ÿþ', '').strip()
                             if cleaned_first_col:
                                 df = df.rename(columns={first_col: cleaned_first_col})
                             else:
-                                # Si la première colonne est vide après nettoyage, on tente de réorganiser
-                                if len(df.columns) > 12:  # Plus de colonnes que prévu
-                                    # Supprimer les colonnes vides au début
+                                if len(df.columns) > 12:
                                     cols_to_drop = []
                                     for col in df.columns:
                                         if col.startswith('Unnamed:') or 'ÿþ' in col or col.strip() == '':
@@ -186,19 +176,20 @@ class CSVParser:
                                             break
                                     if cols_to_drop:
                                         df = df.drop(columns=cols_to_drop)
-                                        logger.debug(f"Colonnes supprimées: {cols_to_drop}")
-                    
-                    logger.debug(f"CSV lu avec l'encodage {encoding} et stratégie {strategy}")
-                    return df
-                    
+                    # Si le DataFrame n'est pas vide, on accepte et on laisse la normalisation et la validation stricte se faire ensuite
+                    if not df.empty:
+                        logger.debug(f"CSV lu avec l'encodage {encoding} et stratégie {strategy}")
+                        return df
+                    else:
+                        logger.debug(f"DataFrame vide avec encodage {encoding} : {df.columns}")
+                        continue
                 except (UnicodeDecodeError, pd.errors.ParserError) as e:
                     logger.debug(f"Échec avec encodage {encoding} et stratégie {strategy}: {e}")
                     continue
                 except Exception as e:
                     logger.debug(f"Erreur inattendue avec encodage {encoding}: {e}")
                     continue
-                
-        raise CSVParserError(f"Impossible de lire le fichier avec tous les encodages et stratégies testés")
+        raise CSVParserError(f"Impossible de lire le fichier avec tous les encodages et stratégies testés : DataFrame vide.")
     
     def _normalize_column_names(self, df: pd.DataFrame) -> pd.DataFrame:
         """Normalise les noms de colonnes selon le mapping"""
