@@ -546,8 +546,8 @@ def create_quick_actions_section():
                             try:
                                 db = get_database()
                                 # Suppression en cascade dans l'ordre correct
-                                sets_deleted = db.execute_update("DELETE FROM training_sets")
-                                sessions_deleted = db.execute_update("DELETE FROM training_sessions")
+                                sets_deleted = db.execute_update("DELETE FROM sets")
+                                sessions_deleted = db.execute_update("DELETE FROM sessions")
                                 st.success(f"🗑️ Base vidée : {sets_deleted} séries, {sessions_deleted} sessions supprimées")
                             except Exception as e:
                                 st.error(f"❌ Erreur lors du vidage : {e}")

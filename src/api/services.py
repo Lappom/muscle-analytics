@@ -446,10 +446,24 @@ class AnalyticsService:
         sessions = self.db_service.get_sessions(start_date=start_date, end_date=end_date)
         sessions_df = self._sessions_to_dataframe(sessions)
         
-        # Calcul des features
+        # Calculer les tendances de volume
+        volume_trends = self.feature_calculator.progression_analyzer.calculate_volume_trends(
+            df, sessions_df, periods=[7, 30]
+        )
+        
+        # Calcul des features de base
         features_df = self.feature_calculator.calculate_all_features(
             df, sessions_df, include_1rm=False
         )
+        
+        # Détection de plateaux
+        try:
+            plateau_data = self.feature_calculator.progression_analyzer.detect_plateaus(df, 'volume')
+            plateau_exercises = set()
+            if not plateau_data.empty and 'exercise' in plateau_data.columns:
+                plateau_exercises = set(plateau_data[plateau_data.get('plateau_detected', False) == True]['exercise'].unique())
+        except Exception:
+            plateau_exercises = set()
         
         # Groupement par exercice
         progression_stats = []
@@ -457,18 +471,60 @@ class AnalyticsService:
             exercise_data = features_df[features_df['exercise'] == exercise_name]
             exercise_sessions = len(exercise_data['session_id'].unique())
             
+            # Extraire les tendances de volume pour cet exercice
+            volume_trend_7d = None
+            volume_trend_30d = None
+            
+            if '7d' in volume_trends:
+                trend_7d_data = volume_trends['7d'][volume_trends['7d']['exercise'] == exercise_name]
+                if not trend_7d_data.empty:
+                    volume_trend_7d = trend_7d_data['trend_pct'].iloc[0]
+            
+            if '30d' in volume_trends:
+                trend_30d_data = volume_trends['30d'][volume_trends['30d']['exercise'] == exercise_name]
+                if not trend_30d_data.empty:
+                    volume_trend_30d = trend_30d_data['trend_pct'].iloc[0]
+            
+            # Déterminer la tendance générale
+            progression_trend = self._determine_progression_trend(volume_trend_7d, volume_trend_30d, exercise_sessions)
+            
+            # Vérifier si l'exercice est en plateau
+            plateau_detected = exercise_name in plateau_exercises
+            
             if not exercise_data.empty:
                 progression_stats.append(ProgressionStats(
                     exercise=exercise_name,
                     total_sessions=exercise_sessions,
-                    progression_trend=self._safe_extract_str(exercise_data, 'progression_trend'),
-                    volume_trend_7d=self._safe_extract_float(exercise_data, 'volume_trend_7d'),
-                    volume_trend_30d=self._safe_extract_float(exercise_data, 'volume_trend_30d'),
-                    plateau_detected=self._safe_extract_bool(exercise_data, 'plateau_detected', False),
+                    progression_trend=progression_trend,
+                    volume_trend_7d=volume_trend_7d,
+                    volume_trend_30d=volume_trend_30d,
+                    plateau_detected=plateau_detected,
                     days_since_last_pr=self._safe_extract_int(exercise_data, 'days_since_last_pr')
                 ))
         
         return progression_stats
+    
+    def _determine_progression_trend(self, volume_trend_7d: Optional[float], 
+                                   volume_trend_30d: Optional[float], 
+                                   total_sessions: int) -> str:
+        """Détermine la tendance générale de progression basée sur les tendances de volume"""
+        # Si pas assez de sessions, retourner unknown
+        if total_sessions < 3:
+            return 'unknown'
+        
+        # Priorité à la tendance 7 jours si disponible (plus récente)
+        primary_trend = volume_trend_7d if volume_trend_7d is not None else volume_trend_30d
+        
+        if primary_trend is None:
+            return 'unknown'
+        
+        # Seuils pour déterminer la tendance
+        if primary_trend > 5.0:
+            return 'positive'
+        elif primary_trend < -5.0:
+            return 'negative'
+        else:
+            return 'stable'
     
     def get_dashboard_data(self) -> DashboardData:
         """Récupère les données du dashboard"""

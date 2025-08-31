@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import numpy as np
 from typing import Dict, List, Optional
 
 from ..services.api_client import get_api_client
@@ -191,9 +192,10 @@ def _display_exercise_progression_detail(df_progression: pd.DataFrame, filters: 
         st.metric("Sessions totales", exercise_data['total_sessions'])
     
     with col2:
-        trend = exercise_data.get('trend_slope', 0)
-        trend_direction = "📈" if trend > 0 else "📉" if trend < 0 else "➡️"
-        st.metric("Tendance", f"{trend_direction} {trend:.3f}")
+        trend = exercise_data.get('progression_trend', 'Inconnue')
+        trend_icons = {'positive': '📈', 'negative': '📉', 'stable': '➡️'}
+        trend_icon = trend_icons.get(trend.lower(), '❓')
+        st.metric("Tendance", f"{trend_icon} {trend.title()}")
     
     with col3:
         plateau = exercise_data.get('plateau_detected', False)
@@ -201,44 +203,35 @@ def _display_exercise_progression_detail(df_progression: pd.DataFrame, filters: 
         st.metric("Plateau", plateau_status)
     
     with col4:
-        consistency = exercise_data.get('consistency_score', 0)
-        st.metric("Consistance", f"{consistency:.1%}")
+        days_since_pr = exercise_data.get('days_since_last_pr')
+        if days_since_pr is not None:
+            st.metric("Jours depuis dernier PR", f"{days_since_pr} jours")
+        else:
+            st.metric("Dernier PR", "Aucun")
+    
+    # Graphiques spécifiques à l'exercice
+    _display_exercise_trend_analysis(exercise_data, filters)
+    _display_exercise_volume_trends(exercise_data, filters)
 
 def _display_overall_progression_charts(df_progression: pd.DataFrame, filters: Dict):
     """Affiche la vue d'ensemble des progressions"""
-    st.subheader("Progression par exercice")
+    st.subheader("Vue d'ensemble de la progression")
     
-    # Graphique des tendances
-    if 'trend_slope' in df_progression.columns:
-        # Ajouter une colonne pour la couleur basée sur la tendance
-        df_progression['trend_color'] = df_progression['trend_slope'].apply(
-            lambda x: 'Positive' if x > 0 else 'Négative' if x < 0 else 'Stable'
-        )
-        
-        fig_scatter = px.scatter(
-            df_progression,
-            x='total_sessions',
-            y='trend_slope',
-            color='trend_color',
-            size='consistency_score',
-            hover_name='exercise',
-            title="Tendances de progression par exercice",
-            labels={
-                'total_sessions': 'Nombre de sessions',
-                'trend_slope': 'Pente de progression',
-                'trend_color': 'Type de tendance'
-            },
-            color_discrete_map={
-                'Positive': '#2ecc71',
-                'Négative': '#e74c3c',
-                'Stable': '#95a5a6'
-            }
-        )
-        
-        # Application du thème
-        fig_scatter = apply_theme_to_chart(fig_scatter, filters)
-        
-        st.plotly_chart(fig_scatter, use_container_width=True)
+    # Vue d'ensemble avec métriques globales
+    _display_progression_overview_metrics(df_progression)
+    
+    # Graphiques de tendances
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        _display_progression_trend_chart(df_progression, filters)
+    
+    with col2:
+        _display_volume_trends_chart(df_progression, filters)
+    
+    # Graphiques complémentaires
+    _display_sessions_distribution_chart(df_progression, filters)
+    _display_plateau_analysis_chart(df_progression, filters)
     
     # Tableau des exercices avec alerte plateau
     _display_plateau_alerts(df_progression)
@@ -248,8 +241,20 @@ def _display_plateau_alerts(df_progression: pd.DataFrame):
     plateaus = df_progression[df_progression.get('plateau_detected', False) == True]
     if not plateaus.empty:
         st.warning("⚠️ Exercices en plateau détectés")
+        
+        plateau_data = []
         for _, exercise in plateaus.iterrows():
-            st.write(f"• {exercise['exercise']}")
+            days_since_pr = exercise.get('days_since_last_pr', 'N/A')
+            plateau_data.append({
+                'Exercice': exercise['exercise'],
+                'Sessions': exercise['total_sessions'],
+                'Jours depuis PR': f"{days_since_pr} jours" if days_since_pr != 'N/A' else 'Aucun PR'
+            })
+        
+        if plateau_data:
+            st.dataframe(pd.DataFrame(plateau_data), use_container_width=True)
+    else:
+        st.success("✅ Aucun plateau détecté - excellente progression !")
 
 def create_muscle_radar_chart(muscle_balance: Dict[str, float], ideal_balance: Optional[List[float]] = None) -> go.Figure:
     """Crée un graphique radar pour l'équilibre musculaire"""
@@ -350,3 +355,296 @@ def _display_frequency_chart(session_counts: pd.DataFrame, filters: Dict):
         fig_freq.update_traces(hovertemplate=None, hoverinfo='skip')
     
     st.plotly_chart(fig_freq, use_container_width=True)
+
+def _display_progression_overview_metrics(df_progression: pd.DataFrame):
+    """Affiche les métriques globales de progression"""
+    col1, col2, col3, col4 = st.columns(4)
+    
+    total_exercises = len(df_progression)
+    exercises_with_plateaus = len(df_progression[df_progression.get('plateau_detected', False) == True])
+    positive_trends = len(df_progression[df_progression.get('progression_trend', '').str.lower() == 'positive'])
+    avg_sessions = df_progression['total_sessions'].mean() if not df_progression.empty else 0
+    
+    with col1:
+        st.metric("Total exercices", total_exercises)
+    
+    with col2:
+        st.metric("Tendances positives", f"{positive_trends}/{total_exercises}")
+    
+    with col3:
+        st.metric("Exercices en plateau", exercises_with_plateaus, 
+                 delta=f"-{exercises_with_plateaus}" if exercises_with_plateaus > 0 else None)
+    
+    with col4:
+        st.metric("Sessions moyennes", f"{avg_sessions:.1f}")
+
+def _display_progression_trend_chart(df_progression: pd.DataFrame, filters: Dict):
+    """Affiche le graphique des tendances de progression"""
+    if df_progression.empty:
+        st.info("Aucune donnée de tendance disponible")
+        return
+    
+    # Vérifier si la colonne progression_trend existe et a des données
+    if 'progression_trend' not in df_progression.columns or df_progression['progression_trend'].isna().all():
+        st.info("Données de tendance non disponibles - l'API calcule maintenant les tendances automatiquement")
+        return
+    
+    # Préparation des données pour le graphique
+    trend_counts = df_progression['progression_trend'].value_counts().reset_index()
+    trend_counts.columns = ['Tendance', 'Nombre']
+    
+    # Filtrer les valeurs nulles
+    trend_counts = trend_counts[trend_counts['Tendance'].notna()]
+    
+    if trend_counts.empty:
+        st.info("Aucune donnée de tendance disponible pour affichage")
+        return
+    
+    # Mappage des couleurs
+    color_map = {
+        'positive': '#2ecc71',
+        'negative': '#e74c3c', 
+        'stable': '#f39c12',
+        'unknown': '#95a5a6'
+    }
+    
+    # Créer le color_discrete_map dynamiquement
+    color_discrete_map = {}
+    for _, row in trend_counts.iterrows():
+        trend = row['Tendance']
+        color_discrete_map[trend] = color_map.get(trend.lower() if pd.notna(trend) else 'unknown', '#95a5a6')
+    
+    fig_pie = px.pie(
+        trend_counts,
+        values='Nombre',
+        names='Tendance',
+        title="Répartition des tendances",
+        color_discrete_map=color_discrete_map
+    )
+    
+    fig_pie = apply_theme_to_chart(fig_pie, filters)
+    st.plotly_chart(fig_pie, use_container_width=True)
+
+def _display_volume_trends_chart(df_progression: pd.DataFrame, filters: Dict):
+    """Affiche le graphique des tendances de volume"""
+    if df_progression.empty:
+        st.info("Aucune donnée de volume disponible")
+        return
+    
+    # Vérifier que les colonnes de tendances existent et ont des données valides
+    has_7d_data = 'volume_trend_7d' in df_progression.columns and not df_progression['volume_trend_7d'].isna().all()
+    has_30d_data = 'volume_trend_30d' in df_progression.columns and not df_progression['volume_trend_30d'].isna().all()
+    
+    if not has_7d_data and not has_30d_data:
+        st.info("Données de tendance de volume non disponibles - vérifiez que vous avez suffisamment de données d'entraînement")
+        return
+    
+    # Création du graphique des tendances de volume
+    fig_bar = go.Figure()
+    
+    # Tendances 7 jours
+    if has_7d_data:
+        fig_bar.add_trace(go.Bar(
+            name='Tendance 7j',
+            x=df_progression['exercise'],
+            y=df_progression['volume_trend_7d'].fillna(0),
+            marker_color='lightblue',
+            opacity=0.7,
+            hovertemplate="<b>%{x}</b><br>Tendance 7j: %{y:.1f}%<extra></extra>"
+        ))
+    
+    # Tendances 30 jours
+    if has_30d_data:
+        fig_bar.add_trace(go.Bar(
+            name='Tendance 30j',
+            x=df_progression['exercise'],
+            y=df_progression['volume_trend_30d'].fillna(0),
+            marker_color='darkblue',
+            opacity=0.8,
+            hovertemplate="<b>%{x}</b><br>Tendance 30j: %{y:.1f}%<extra></extra>"
+        ))
+    
+    fig_bar.update_layout(
+        title="Tendances de volume par exercice",
+        xaxis_title="Exercice",
+        yaxis_title="Tendance (%)",
+        barmode='group',
+        xaxis_tickangle=-45
+    )
+    
+    # Ligne de référence à 0
+    fig_bar.add_hline(y=0, line_dash="dash", line_color="gray", 
+                     annotation_text="Pas de changement")
+    
+    fig_bar = apply_theme_to_chart(fig_bar, filters)
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+def _display_sessions_distribution_chart(df_progression: pd.DataFrame, filters: Dict):
+    """Affiche la distribution des sessions par exercice"""
+    if df_progression.empty:
+        return
+    
+    st.subheader("Distribution des sessions d'entraînement")
+    
+    # Tri par nombre de sessions
+    df_sorted = df_progression.sort_values('total_sessions', ascending=True)
+    
+    fig_bar = px.bar(
+        df_sorted,
+        x='total_sessions',
+        y='exercise',
+        orientation='h',
+        title="Nombre de sessions par exercice",
+        labels={'total_sessions': 'Nombre de sessions', 'exercise': 'Exercice'},
+        color='total_sessions',
+        color_continuous_scale='viridis'
+    )
+    
+    fig_bar.update_layout(
+        height=max(400, len(df_progression) * 25),
+        showlegend=False
+    )
+    
+    fig_bar = apply_theme_to_chart(fig_bar, filters)
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+def _display_plateau_analysis_chart(df_progression: pd.DataFrame, filters: Dict):
+    """Affiche l'analyse des plateaux avec temps depuis dernier PR"""
+    if df_progression.empty:
+        return
+    
+    # Filtrer les exercices avec des données de PR
+    pr_data = df_progression[df_progression['days_since_last_pr'].notna()].copy()
+    
+    if pr_data.empty:
+        st.info("Aucune donnée de PR disponible pour l'analyse des plateaux")
+        return
+    
+    st.subheader("Analyse des Personal Records (PR)")
+    
+    # Créer des catégories de temps
+    pr_data['pr_category'] = pd.cut(
+        pr_data['days_since_last_pr'],
+        bins=[0, 7, 30, 90, float('inf')],
+        labels=['< 1 semaine', '1-4 semaines', '1-3 mois', '> 3 mois']
+    )
+    
+    # Compter par catégorie
+    category_counts = pr_data['pr_category'].value_counts().reset_index()
+    category_counts.columns = ['Période', 'Nombre']
+    
+    fig_pie = px.pie(
+        category_counts,
+        values='Nombre',
+        names='Période',
+        title="Temps écoulé depuis le dernier PR",
+        color_discrete_sequence=px.colors.qualitative.Set3
+    )
+    
+    fig_pie = apply_theme_to_chart(fig_pie, filters)
+    st.plotly_chart(fig_pie, use_container_width=True)
+
+def _display_exercise_trend_analysis(exercise_data: pd.Series, filters: Dict):
+    """Affiche l'analyse de tendance pour un exercice spécifique"""
+    st.subheader("Analyse de tendance détaillée")
+    
+    # Créer un graphique de métriques
+    metrics_data = {
+        'Métrique': ['Tendance 7j', 'Tendance 30j'],
+        'Valeur': [
+            exercise_data.get('volume_trend_7d', 0),
+            exercise_data.get('volume_trend_30d', 0)
+        ]
+    }
+    
+    metrics_df = pd.DataFrame(metrics_data)
+    
+    if not metrics_df['Valeur'].isna().all():
+        fig_bar = px.bar(
+            metrics_df,
+            x='Métrique',
+            y='Valeur',
+            title="Tendances de volume",
+            labels={'Valeur': 'Tendance (%)'},
+            color='Valeur',
+            color_continuous_scale='RdYlGn'
+        )
+        
+        fig_bar.add_hline(y=0, line_dash="dash", line_color="gray")
+        fig_bar = apply_theme_to_chart(fig_bar, filters)
+        st.plotly_chart(fig_bar, use_container_width=True)
+    else:
+        st.info("Données de tendance non disponibles pour cet exercice")
+
+def _display_exercise_volume_trends(exercise_data: pd.Series, filters: Dict):
+    """Affiche les tendances de volume pour un exercice spécifique"""
+    st.subheader("Évolution du volume")
+    
+    # Graphique de tendance simplifiée
+    trend_7d = exercise_data.get('volume_trend_7d', 0)
+    trend_30d = exercise_data.get('volume_trend_30d', 0)
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        trend_7d_color = "normal" if trend_7d == 0 else "delta" if trend_7d > 0 else "inverse"
+        st.metric(
+            "Tendance 7 jours", 
+            f"{trend_7d:.1f}%" if pd.notna(trend_7d) else "N/A",
+            delta=f"{abs(trend_7d):.1f}%" if pd.notna(trend_7d) and trend_7d != 0 else None,
+            delta_color=trend_7d_color
+        )
+    
+    with col2:
+        trend_30d_color = "normal" if trend_30d == 0 else "delta" if trend_30d > 0 else "inverse"
+        st.metric(
+            "Tendance 30 jours", 
+            f"{trend_30d:.1f}%" if pd.notna(trend_30d) else "N/A",
+            delta=f"{abs(trend_30d):.1f}%" if pd.notna(trend_30d) and trend_30d != 0 else None,
+            delta_color=trend_30d_color
+        )
+    
+    # Recommandations basées sur les tendances
+    _display_progression_recommendations(exercise_data)
+
+def _display_progression_recommendations(exercise_data: pd.Series):
+    """Affiche des recommandations basées sur la progression"""
+    st.subheader("💡 Recommandations")
+    
+    recommendations = []
+    
+    # Analyse du plateau
+    if exercise_data.get('plateau_detected', False):
+        days_since_pr = exercise_data.get('days_since_last_pr')
+        if days_since_pr and days_since_pr > 30:
+            recommendations.append("🔄 Plateau détecté depuis plus de 30 jours - considérez un changement de programme")
+        else:
+            recommendations.append("⚠️ Plateau détecté - maintenez votre programme encore quelques séances")
+    
+    # Analyse des tendances
+    trend_7d = exercise_data.get('volume_trend_7d', 0)
+    trend_30d = exercise_data.get('volume_trend_30d', 0)
+    
+    if pd.notna(trend_7d) and trend_7d > 5:
+        recommendations.append("📈 Excellente progression récente - continuez sur cette voie !")
+    elif pd.notna(trend_7d) and trend_7d < -5:
+        recommendations.append("📉 Baisse de volume récente - vérifiez votre récupération")
+    
+    if pd.notna(trend_30d) and trend_30d > 10:
+        recommendations.append("🚀 Progression exceptionnelle sur le mois - maintenez l'intensité")
+    elif pd.notna(trend_30d) and trend_30d < -10:
+        recommendations.append("⚡ Baisse significative sur le mois - considérez une semaine de décharge")
+    
+    # Analyse du nombre de sessions
+    total_sessions = exercise_data.get('total_sessions', 0)
+    if total_sessions < 3:
+        recommendations.append("📊 Peu de données disponibles - continuez l'entraînement pour plus d'analyses")
+    elif total_sessions > 20:
+        recommendations.append("🎯 Excellente consistance d'entraînement !")
+    
+    # Affichage des recommandations
+    if recommendations:
+        for rec in recommendations:
+            st.write(f"• {rec}")
+    else:
+        st.info("Continuez votre programme actuel - progression stable")

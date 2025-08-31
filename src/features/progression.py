@@ -443,3 +443,128 @@ class ProgressionAnalyzer:
             )
         
         return recommendations
+    
+    def calculate_volume_trends(self, df: pd.DataFrame,
+                              sessions_df: Optional[pd.DataFrame] = None,
+                              periods: List[int] = [7, 30]) -> Dict[str, pd.DataFrame]:
+        """
+        Calcule les tendances de volume sur différentes périodes.
+        
+        Args:
+            df: DataFrame avec données d'entraînement
+            sessions_df: DataFrame des séances
+            periods: Liste des périodes en jours pour calculer les tendances
+            
+        Returns:
+            Dictionnaire avec les tendances par période et par exercice
+        """
+        from datetime import datetime, timedelta
+        
+        # Calculer volume si pas présent
+        if 'volume' not in df.columns:
+            df = df.copy()
+            df['volume'] = df['reps'].fillna(0) * df['weight_kg'].fillna(0)
+        
+        # Joindre avec les dates
+        if sessions_df is not None:
+            df_with_dates = df.merge(
+                sessions_df[['id', 'date']], 
+                left_on='session_id', 
+                right_on='id', 
+                how='left'
+            )
+            df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
+        else:
+            return {}
+        
+        # Filtrer les sets principaux (utiliser 'working_set' et non 'principale')
+        mask = (df_with_dates['series_type'] == 'working_set') & (df_with_dates['skipped'] != True)
+        working_sets = df_with_dates[mask].copy()
+        
+        if working_sets.empty:
+            return {}
+        
+        # Date la plus récente dans les données
+        max_date = working_sets['date'].max()
+        
+        trends_by_period = {}
+        
+        for period_days in periods:
+            # Pour les courtes périodes, utiliser des sessions récentes plutôt qu'une date fixe
+            if period_days <= 30:
+                # Prendre les N dernières sessions au lieu d'une période de temps fixe
+                recent_sessions = (working_sets
+                                 .groupby(['exercise', 'session_id', 'date'])['volume']
+                                 .sum()
+                                 .reset_index()
+                                 .sort_values('date')
+                                 .groupby('exercise')
+                                 .tail(max(2, period_days // 3))  # Au moins 2 points, environ 1 session tous les 3 jours
+                                 .reset_index(drop=True))
+                session_volume = recent_sessions
+            else:
+                # Pour les longues périodes, utiliser la méthode basée sur les dates
+                start_date = max_date - timedelta(days=period_days)
+                period_data = working_sets[working_sets['date'] >= start_date].copy()
+                
+                if period_data.empty:
+                    continue
+                
+                session_volume = (period_data
+                                .groupby(['exercise', 'session_id', 'date'])['volume']
+                                .sum()
+                                .reset_index())
+            
+            trends_data = []
+            
+            for exercise in session_volume['exercise'].unique():
+                exercise_data = session_volume[session_volume['exercise'] == exercise].copy()
+                exercise_data = exercise_data.sort_values('date')
+                
+                if len(exercise_data) < 2:  # Minimum 2 points pour calculer une tendance
+                    continue
+                
+                # Calculer la tendance linéaire
+                x = np.arange(len(exercise_data))
+                y = exercise_data['volume'].values
+                
+                try:
+                    # Régression linéaire
+                    linregress_result = stats.linregress(x, y)
+                    slope = linregress_result.slope
+                    
+                    # Calculer le pourcentage de changement
+                    mean_volume = y.mean()
+                    if mean_volume > 0:
+                        # Tendance en pourcentage par jour * nombre de jours
+                        trend_pct = (slope / mean_volume) * 100 * len(x)
+                    else:
+                        trend_pct = 0.0
+                    
+                    # Limiter la tendance pour éviter des valeurs aberrantes
+                    trend_pct = max(-100, min(100, trend_pct))
+                    
+                    trends_data.append({
+                        'exercise': exercise,
+                        'period_days': period_days,
+                        'trend_slope': slope,
+                        'trend_pct': round(trend_pct, 2),
+                        'data_points': len(exercise_data),
+                        'mean_volume': round(mean_volume, 2)
+                    })
+                    
+                except Exception as e:
+                    # En cas d'erreur, tendance nulle
+                    trends_data.append({
+                        'exercise': exercise,
+                        'period_days': period_days,
+                        'trend_slope': 0.0,
+                        'trend_pct': 0.0,
+                        'data_points': len(exercise_data),
+                        'mean_volume': round(y.mean() if len(y) > 0 else 0, 2)
+                    })
+            
+            if trends_data:
+                trends_by_period[f'{period_days}d'] = pd.DataFrame(trends_data)
+        
+        return trends_by_period
