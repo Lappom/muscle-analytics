@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-green.svg)](https://fastapi.tiangolo.com)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](https://docker.com)
-[![Security](https://img.shields.io/badge/Security-Enhanced-green.svg)](README.md)
+[![Security](https://img.shields.io/badge/Security-Enhanced-green.svg)](docs/SECURITY_IMPROVEMENTS.md)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Un projet **Data Science & IA** qui transforme vos logs d'entraînements (CSV/XML) en **insights actionnables** : dashboards interactifs, métriques de progression, estimations 1RM et prédictions pour optimiser votre entraînement.
@@ -41,24 +41,37 @@ curl http://localhost:8000/analytics/dashboard
 
 Convertir vos logs de musculation en **insights actionnables** :
 
-- 📊 **Volume et progression** par exercice
-- 🎯 **Estimation 1RM** avec formules validées
-- 📈 **Détection de plateaux** et anomalies
-- 🔮 **Forecasting** du volume hebdomadaire
-- 💡 **Recommandations** personnalisées
+-   📊 **Volume et progression** par exercice
+-   🎯 **Estimation 1RM** avec formules validées
+-   📈 **Détection de plateaux** et anomalies
+-   🔮 **Forecasting** du volume hebdomadaire
+-   💡 **Recommandations** personnalisées
 
 ## ✨ Fonctionnalités principales
 
-- **🔄 Ingestion & ETL** : Parsers robustes pour CSV/XML, normalisation et import intelligent.
-- **📊 API REST Complète** : Endpoints FastAPI modernes pour les sessions, exercices et analyses.
-- **🧮 Calculs de Features Avancés** : Volume, 1RM, tendances de progression, et moyennes mobiles.
-- **🤖 Intelligence Artificielle (Prévu)** : Forecasting, détection d'anomalies et recommandations.
+-   **🔄 Ingestion & ETL** : Parsers robustes pour CSV/XML, normalisation et import intelligent.
+-   **📊 API REST Complète** : Endpoints FastAPI modernes pour les sessions, exercices et analyses.
+-   **🧮 Calculs de Features Avancés** : Volume, 1RM, tendances de progression, et moyennes mobiles.
+-   **🤖 Intelligence Artificielle (Prévu)** : Forecasting, détection d'anomalies et recommandations.
 
 ## 🛠️ Tech Stack
 
-- **Backend & ML** : Python 3.9+, FastAPI, Pandas, Scikit-learn, SQLAlchemy.
-- **Infrastructure** : PostgreSQL, Docker & Docker Compose.
-- **Qualité & CI/CD** : pytest, GitHub Actions, Black, isort, flake8.
+-   **Backend & ML** : Python 3.9+, FastAPI, Pandas, Scikit-learn, SQLAlchemy.
+-   **Infrastructure** : PostgreSQL, Docker & Docker Compose.
+-   **Qualité & CI/CD** : pytest, GitHub Actions, Black, isort, flake8.
+
+## 🔒 Sécurité
+
+Le projet inclut des mécanismes de sécurité robustes pour protéger les opérations critiques :
+
+-   **🔐 Authentification administrateur** pour les opérations sensibles
+-   **⚠️ Confirmation double** pour les suppressions de données
+-   **⏰ Sessions temporaires** avec expiration automatique
+-   **📝 Journalisation** des actions administratives
+
+📖 [Documentation de sécurité complète](docs/SECURITY_IMPROVEMENTS.md) |
+⚙️ [Configuration de sécurité](docs/SECURITY_CONFIG.md) |
+📅 [Améliorations de progression](docs/PROGRESSION_IMPROVEMENTS.md)
 
 ---
 

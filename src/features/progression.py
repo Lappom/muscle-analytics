@@ -14,6 +14,10 @@ from typing import Dict, List, Optional, Tuple, Union
 from datetime import datetime, timedelta
 from scipy import stats
 
+# Constantes pour l'assignation de dates par défaut
+DEFAULT_START_DATE = pd.Timestamp('2024-01-01')  # Date de début arbitraire pour maintenir l'ordre temporel
+DEFAULT_DATE_SPACING = pd.Timedelta(days=1)  # Espacement entre sessions sans dates
+
 
 class ProgressionAnalyzer:
     """Analyseur de progression d'entraînement."""
@@ -23,6 +27,39 @@ class ProgressionAnalyzer:
         self.trend_threshold = 0.05  # Seuil de tendance significative (5%)
         self.plateau_threshold = 0.02  # Seuil de plateau (2%)
         self.min_sessions_for_trend = 5  # Nombre minimum de séances pour détecter une tendance
+    
+    def _assign_proxy_dates(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Assigne des dates par défaut quand les vraies dates ne sont pas disponibles.
+        
+        Cette fonction maintient l'ordre temporel relatif des sessions en utilisant
+        des dates arbitraires consécutives à partir d'une date de référence.
+        
+        Args:
+            df: DataFrame contenant les données d'entraînement
+            
+        Returns:
+            DataFrame avec une colonne 'date' ajoutée ou mise à jour
+        """
+        df_with_dates = df.copy()
+        
+        if 'session_id' in df_with_dates.columns:
+            # Trier les sessions pour maintenir un ordre cohérent
+            unique_sessions = sorted(df_with_dates['session_id'].unique())
+            
+            # Créer un mapping session_id -> date en maintenant l'ordre relatif
+            # Chaque session reçoit une date consécutive à partir de DEFAULT_START_DATE
+            session_to_date = {
+                sid: DEFAULT_START_DATE + (i * DEFAULT_DATE_SPACING)
+                for i, sid in enumerate(unique_sessions)
+            }
+            
+            df_with_dates['date'] = df_with_dates['session_id'].map(session_to_date)
+        else:
+            # Si pas de session_id, utiliser la date actuelle comme point de référence unique
+            df_with_dates['date'] = pd.Timestamp.now()
+        
+        return df_with_dates
     
     def calculate_volume_progression(self, df: pd.DataFrame,
                                    sessions_df: Optional[pd.DataFrame] = None,
@@ -53,8 +90,8 @@ class ProgressionAnalyzer:
             )
             df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
         else:
-            df_with_dates = df.copy()
-            df_with_dates['date'] = df_with_dates['session_id']  # Proxy temporel
+            # Utiliser la fonction helper pour assigner des dates par défaut
+            df_with_dates = self._assign_proxy_dates(df)
         
         # Filtrer les sets principaux
         mask = (df_with_dates['series_type'] == 'working_set') & (df_with_dates['skipped'] != True)
@@ -150,8 +187,8 @@ class ProgressionAnalyzer:
             )
             df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
         else:
-            df_with_dates = df.copy()
-            df_with_dates['date'] = df_with_dates['session_id']
+            # Utiliser la fonction helper pour assigner des dates par défaut
+            df_with_dates = self._assign_proxy_dates(df)
         
         # Filtrer les sets principaux
         mask = (df_with_dates['series_type'] == 'working_set') & (df_with_dates['skipped'] != True)
@@ -479,15 +516,8 @@ class ProgressionAnalyzer:
             )
             df_with_dates['date'] = pd.to_datetime(df_with_dates['date'])
         else:
-            df_with_dates = df.copy()
-            # Si pas de dates, utiliser une date arbitraire basée sur session_id
-            if 'session_id' in df_with_dates.columns:
-                unique_sessions = sorted(df_with_dates['session_id'].unique())
-                session_to_date = {sid: pd.Timestamp('2024-01-01') + pd.Timedelta(days=i) 
-                                 for i, sid in enumerate(unique_sessions)}
-                df_with_dates['date'] = df_with_dates['session_id'].map(session_to_date)
-            else:
-                df_with_dates['date'] = pd.Timestamp.now()
+            # Utiliser la fonction helper pour assigner des dates par défaut
+            df_with_dates = self._assign_proxy_dates(df)
         
         # Filtrer les sets de travail non skippés
         mask = (df_with_dates['series_type'] == 'working_set') & (df_with_dates['skipped'] != True)

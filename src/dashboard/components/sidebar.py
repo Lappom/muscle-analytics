@@ -2,16 +2,71 @@
 Composants pour la barre latérale (sidebar)
 """
 import streamlit as st
+import pandas as pd
 from datetime import datetime, timedelta, date
-from typing import Dict, List, Optional, Any
-from sqlalchemy import text
+from typing import Dict, List, Optional, Any, Tuple
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import numpy as np
+from pathlib import Path
+import tempfile
+import os
 
 from ..services.api_client import get_api_client
 from src.etl.import_scripts import ETLImporter
 from src.database import get_database, DatabaseEnvironment
-import tempfile
-import os
-from pathlib import Path
+
+def _check_admin_authentication() -> bool:
+    """
+    Vérifie si l'utilisateur a les droits d'administrateur.
+    
+    Cette fonction implémente une vérification de sécurité basique.
+    En production, elle devrait être remplacée par un système d'authentification robuste.
+    """
+    # Vérification basique via session state (pour démonstration)
+    # En production, utiliser un système d'authentification approprié
+    if 'admin_authenticated' not in st.session_state:
+        # Demander l'authentification admin
+        st.sidebar.markdown("### 🔐 Authentification Administrateur")
+        admin_password = st.sidebar.text_input(
+            "Mot de passe administrateur", 
+            type="password",
+            key="admin_password_input"
+        )
+        
+        if st.sidebar.button("🔑 Se connecter", key="admin_login"):
+            # En production, vérifier contre une base de données sécurisée
+            # Pour ce démonstrateur, utiliser un mot de passe simple
+            if admin_password == "admin123":  # À remplacer par un système sécurisé
+                st.session_state.admin_authenticated = True
+                st.session_state.admin_auth_time = datetime.now()
+                st.success("✅ Authentification administrateur réussie")
+                st.rerun()
+            else:
+                st.error("❌ Mot de passe incorrect")
+                return False
+        
+        return False
+    
+    # Vérifier l'expiration de la session (30 minutes)
+    auth_time = st.session_state.get('admin_auth_time')
+    if auth_time and (datetime.now() - auth_time) > timedelta(minutes=30):
+        del st.session_state.admin_authenticated
+        del st.session_state.admin_auth_time
+        st.warning("⚠️ Session administrateur expirée. Veuillez vous reconnecter.")
+        return False
+    
+    return True
+
+def _show_admin_logout():
+    """Affiche le bouton de déconnexion administrateur"""
+    if st.session_state.get('admin_authenticated'):
+        if st.sidebar.button("🚪 Déconnexion Admin", key="admin_logout"):
+            del st.session_state.admin_authenticated
+            del st.session_state.admin_auth_time
+            st.success("✅ Déconnexion réussie")
+            st.rerun()
 
 # Constantes définies localement en attendant la mise à jour de config.py
 PERIOD_OPTIONS = {
@@ -491,6 +546,9 @@ def create_quick_actions_section():
             
             st.success("🎯 Filtres réinitialisés avec succès!")
             st.rerun()
+    
+    # Affichage du statut d'authentification administrateur
+    _show_admin_logout()
 
     # Import de données (CSV/XML)
     st.sidebar.markdown('<div style="margin: 1rem 0 0.5rem 0;"></div>', unsafe_allow_html=True)
@@ -521,6 +579,21 @@ def create_quick_actions_section():
             if not uploaded:
                 st.warning("Veuillez sélectionner un fichier CSV ou XML.")
             else:
+                # ✅ **VÉRIFICATION DE SÉCURITÉ : Authentification requise pour vider la base**
+                if clear_before:
+                    # Vérification d'authentification avant suppression
+                    if not _check_admin_authentication():
+                        st.error("❌ Accès refusé : Seuls les administrateurs peuvent vider la base de données")
+                        return
+                    
+                    # Confirmation supplémentaire pour suppression
+                    if not st.session_state.get('confirmed_deletion', False):
+                        st.warning("⚠️ ATTENTION : Cette action supprimera TOUTES les données existantes !")
+                        if st.button("🔐 Confirmer la suppression (Admin uniquement)", type="secondary"):
+                            st.session_state.confirmed_deletion = True
+                            st.rerun()
+                        return
+                
                 # Écriture dans un fichier temporaire pour l'ETL
                 suffix = Path(uploaded.name).suffix
                 tmp_path = None
@@ -541,7 +614,7 @@ def create_quick_actions_section():
                     
                     # Lancer l'import ETL
                     with st.spinner("🚚 Import des données en cours..."):
-                        # ✅ **ÉTAPE 1 : Vider la base si demandé**
+                        # ✅ **ÉTAPE 1 : Vider la base si demandé (avec vérification de sécurité)**
                         if clear_before:
                             try:
                                 db = get_database()
@@ -549,6 +622,8 @@ def create_quick_actions_section():
                                 sets_deleted = db.execute_update("DELETE FROM sets")
                                 sessions_deleted = db.execute_update("DELETE FROM sessions")
                                 st.success(f"🗑️ Base vidée : {sets_deleted} séries, {sessions_deleted} sessions supprimées")
+                                # Réinitialiser la confirmation après suppression réussie
+                                st.session_state.confirmed_deletion = False
                             except Exception as e:
                                 st.error(f"❌ Erreur lors du vidage : {e}")
                                 return

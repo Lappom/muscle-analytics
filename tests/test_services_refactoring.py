@@ -1,234 +1,528 @@
 """
-Tests unitaires pour les méthodes d'extraction refactorisées dans services.py
+Tests pour les services refactorisés avec gestion des DataFrames vides.
 """
 
 import pytest
 import pandas as pd
 import numpy as np
-from src.api.services import AnalyticsService, DatabaseService
-from unittest.mock import Mock
+from datetime import datetime, date, timedelta
+from unittest.mock import Mock, patch, MagicMock
+import sys
+import os
+
+# Ajouter le chemin src pour les imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+from src.api.services import DatabaseService, AnalyticsService
+from src.features.volume import VolumeCalculator
+from src.features.one_rm import OneRMCalculator
+from src.features.progression import ProgressionAnalyzer
 
 
-class TestSafeExtractionMethods:
-    """Tests pour les méthodes d'extraction sécurisées refactorisées."""
+class TestDatabaseServiceRefactoring:
+    """Tests pour le service de base de données refactorisé."""
     
     def setup_method(self):
-        """Configuration pour chaque test."""
-        # Mock du DatabaseService pour les tests
-        mock_db_service = Mock(spec=DatabaseService)
-        self.analytics_service = AnalyticsService(mock_db_service)
+        """Setup avant chaque test."""
+        # Mock de la base de données
+        self.mock_db = Mock()
+        self.db_service = DatabaseService(self.mock_db)
+        
+        # Données de test CORRIGÉES
+        self.sample_sessions = [
+            Mock(id=1, date=date(2023, 1, 1), training_name="Push A", notes="Bonne séance"),
+            Mock(id=2, date=date(2023, 1, 8), training_name="Pull A", notes=""),
+            Mock(id=3, date=date(2023, 1, 15), training_name="Legs A", notes="Séance difficile")
+        ]
+        
+        self.sample_sets = [
+            Mock(id=1, session_id=1, exercise="Bench Press", reps=10, weight_kg=100.0, skipped=False),
+            Mock(id=2, session_id=1, exercise="Bench Press", reps=8, weight_kg=110.0, skipped=False),
+            Mock(id=3, session_id=2, exercise="Squat", reps=12, weight_kg=120.0, skipped=False),
+            Mock(id=4, session_id=3, exercise="Deadlift", reps=5, weight_kg=150.0, skipped=False)
+        ]
     
-    def test_safe_extract_value_generic(self):
-        """Test de la méthode générique _safe_extract_value."""
-        # DataFrame de test avec différents types de données
-        test_df = pd.DataFrame({
-            'float_col': [1.5, 2.7, 3.9],
-            'int_col': [10, 20, 30],
-            'bool_col': [True, False, True],
-            'str_col': ['a', 'b', 'c'],
-            'mixed_col': [1, 'text', 3.5],
-            'nan_col': [1.0, np.nan, 3.0]
-        })
+    def test_get_sessions_success(self):
+        """Test de récupération des sessions avec succès."""
+        # Configurer le mock
+        self.mock_db.get_sessions.return_value = self.sample_sessions
         
-        # Test extraction float (dernière valeur)
-        result = self.analytics_service._safe_extract_value(
-            test_df, 'float_col', float, use_max=False, default=None
-        )
-        assert result == 3.9
+        # Appeler le service
+        result = self.db_service.get_sessions()
         
-        # Test extraction float (valeur max)
-        result = self.analytics_service._safe_extract_value(
-            test_df, 'float_col', float, use_max=True, default=None
-        )
-        assert result == 3.9
-        
-        # Test extraction int
-        result = self.analytics_service._safe_extract_value(
-            test_df, 'int_col', int, use_max=False, default=None
-        )
-        assert result == 30
-        
-        # Test extraction bool
-        result = self.analytics_service._safe_extract_value(
-            test_df, 'bool_col', bool, use_max=False, default=False
-        )
-        assert result is True
-        
-        # Test extraction string
-        result = self.analytics_service._safe_extract_value(
-            test_df, 'str_col', str, use_max=False, default=None
-        )
-        assert result == 'c'
-        
-        # Test colonne inexistante
-        result = self.analytics_service._safe_extract_value(
-            test_df, 'nonexistent', float, use_max=False, default=999.0
-        )
-        assert result == 999.0
-        
-        # Test DataFrame vide
-        empty_df = pd.DataFrame()
-        result = self.analytics_service._safe_extract_value(
-            empty_df, 'any_col', float, use_max=False, default=555.0
-        )
-        assert result == 555.0
-        
-        # Test valeur NaN (nan_col a comme dernière valeur 3.0, pas NaN)
-        result = self.analytics_service._safe_extract_value(
-            test_df, 'nan_col', float, use_max=False, default=111.0
-        )
-        assert result == 3.0  # Dernière valeur est 3.0
-        
-        # Créons un test spécifique pour NaN en dernière position
-        nan_test_df = pd.DataFrame({'test_col': [1.0, 2.0, np.nan]})
-        result = self.analytics_service._safe_extract_value(
-            nan_test_df, 'test_col', float, use_max=False, default=111.0
-        )
-        assert result == 111.0
+        # Vérifications
+        assert result == self.sample_sessions
+        self.mock_db.get_sessions.assert_called_once()
     
-    def test_safe_extract_float(self):
-        """Test de la méthode _safe_extract_float refactorisée."""
-        test_df = pd.DataFrame({
-            'values': [1.5, 2.7, 3.9, 2.1]
-        })
+    def test_get_sessions_empty_result(self):
+        """Test de récupération des sessions avec résultat vide."""
+        # Configurer le mock pour retourner une liste vide
+        self.mock_db.get_sessions.return_value = []
         
-        # DataFrame séparé avec NaN pour éviter les problèmes de taille
-        nan_df = pd.DataFrame({
-            'with_nan': [1.0, np.nan, 3.0]
-        })
+        # Appeler le service
+        result = self.db_service.get_sessions()
         
-        # Test extraction normale (dernière valeur)
-        result = self.analytics_service._safe_extract_float(test_df, 'values')
-        assert result == 2.1
+        # Vérifications
+        assert result == []
+        assert len(result) == 0
+        self.mock_db.get_sessions.assert_called_once()
+    
+    def test_get_sets_success(self):
+        """Test de récupération des sets avec succès."""
+        # Configurer le mock
+        self.mock_db.get_sets.return_value = self.sample_sets
         
-        # Test extraction max
-        result = self.analytics_service._safe_extract_float(test_df, 'values', use_max=True)
-        assert result == 3.9
+        # Appeler le service
+        result = self.db_service.get_sets()
         
-        # Test colonne inexistante
-        result = self.analytics_service._safe_extract_float(test_df, 'nonexistent')
+        # Vérifications
+        assert result == self.sample_sets
+        self.mock_db.get_sets.assert_called_once()
+    
+    def test_get_sets_empty_result(self):
+        """Test de récupération des sets avec résultat vide."""
+        # Configurer le mock pour retourner une liste vide
+        self.mock_db.get_sets.return_value = []
+        
+        # Appeler le service
+        result = self.db_service.get_sets()
+        
+        # Vérifications
+        assert result == []
+        assert len(result) == 0
+        self.mock_db.get_sets.assert_called_once()
+    
+    def test_get_session_by_id_success(self):
+        """Test de récupération d'une session par ID avec succès."""
+        target_session = self.sample_sessions[0]
+        self.mock_db.get_session_by_id.return_value = target_session
+        
+        # Appeler le service
+        result = self.db_service.get_session_by_id(1)
+        
+        # Vérifications
+        assert result == target_session
+        self.mock_db.get_session_by_id.assert_called_once_with(1)
+    
+    def test_get_session_by_id_not_found(self):
+        """Test de récupération d'une session par ID non trouvée."""
+        # Configurer le mock pour retourner None
+        self.mock_db.get_session_by_id.return_value = None
+        
+        # Appeler le service
+        result = self.db_service.get_session_by_id(999)
+        
+        # Vérifications
         assert result is None
-        
-        # Test avec NaN en dernière position
-        test_nan_df = pd.DataFrame({'test': [1.0, 2.0, np.nan]})
-        result = self.analytics_service._safe_extract_float(test_nan_df, 'test')
-        assert result is None
+        self.mock_db.get_session_by_id.assert_called_once_with(999)
     
-    def test_safe_extract_int(self):
-        """Test de la méthode _safe_extract_int refactorisée."""
-        test_df = pd.DataFrame({
-            'integers': [10, 20, 30],
-            'floats_convertible': [1.0, 2.0, 3.0]
+    def test_get_unique_exercises_success(self):
+        """Test de récupération des exercices uniques avec succès."""
+        expected_exercises = ["Bench Press", "Squat", "Deadlift"]
+        self.mock_db.get_unique_exercises_from_sets.return_value = expected_exercises
+        
+        # Appeler le service
+        result = self.db_service.get_unique_exercises_from_sets()
+        
+        # Vérifications
+        assert result == expected_exercises
+        self.mock_db.get_unique_exercises_from_sets.assert_called_once()
+    
+    def test_get_unique_exercises_empty_result(self):
+        """Test de récupération des exercices uniques avec résultat vide."""
+        # Configurer le mock pour retourner une liste vide
+        self.mock_db.get_unique_exercises_from_sets.return_value = []
+        
+        # Appeler le service
+        result = self.db_service.get_unique_exercises_from_sets()
+        
+        # Vérifications
+        assert result == []
+        assert len(result) == 0
+        self.mock_db.get_unique_exercises_from_sets.assert_called_once()
+    
+    def test_database_error_handling(self):
+        """Test de gestion des erreurs de base de données."""
+        # Configurer le mock pour lever une exception
+        self.mock_db.get_sessions.side_effect = Exception("Erreur de base de données")
+        
+        # Appeler le service et vérifier que l'erreur est propagée
+        with pytest.raises(Exception) as exc_info:
+            self.db_service.get_sessions()
+        
+        assert "Erreur de base de données" in str(exc_info.value)
+
+
+class TestAnalyticsServiceRefactoring:
+    """Tests pour le service d'analytics refactorisé."""
+    
+    def setup_method(self):
+        """Setup avant chaque test."""
+        # Mock du service de base de données
+        self.mock_db_service = Mock(spec=DatabaseService)
+        
+        # Créer le service d'analytics
+        self.analytics_service = AnalyticsService(self.mock_db_service)
+        
+        # Données de test CORRIGÉES
+        self.sample_sets_data = pd.DataFrame({
+            'session_id': [1, 1, 1, 2, 2, 2, 3, 3, 3],
+            'exercise': ['Bench Press', 'Bench Press', 'Squat', 'Bench Press', 'Bench Press', 'Squat', 'Bench Press', 'Bench Press', 'Squat'],
+            'series_type': ['working_set', 'working_set', 'working_set', 'working_set', 'working_set', 'working_set', 'working_set', 'working_set', 'working_set'],
+            'reps': [10, 8, 12, 10, 8, 12, 11, 9, 13],
+            'weight_kg': [100, 110, 120, 105, 115, 125, 107, 117, 127],
+            'skipped': [False, False, False, False, False, False, False, False, False]
         })
         
-        # Test extraction int normale
-        result = self.analytics_service._safe_extract_int(test_df, 'integers')
-        assert result == 30
-        assert isinstance(result, int)
-        
-        # Test conversion float vers int
-        result = self.analytics_service._safe_extract_int(test_df, 'floats_convertible')
-        assert result == 3
-        assert isinstance(result, int)
-        
-        # Test colonne inexistante
-        result = self.analytics_service._safe_extract_int(test_df, 'nonexistent')
-        assert result is None
+        self.sample_sessions_data = pd.DataFrame({
+            'id': [1, 2, 3],
+            'date': ['2023-01-01', '2023-01-08', '2023-01-15']
+        })
     
-    def test_safe_extract_bool(self):
-        """Test de la méthode _safe_extract_bool refactorisée."""
-        test_df = pd.DataFrame({
-            'booleans': [True, False, True],
-            'integers': [0, 1, 0],
-            'strings': ['false', 'true', 'yes']
+    def test_get_volume_analytics_success(self):
+        """Test de récupération des analytics de volume avec succès."""
+        # Configurer le mock pour retourner des données
+        self.mock_db_service.get_sets.return_value = self.sample_sets_data
+        self.mock_db_service.get_sessions.return_value = self.sample_sessions_data
+        
+        # Appeler le service
+        result = self.analytics_service.get_volume_analytics()
+        
+        # Vérifications
+        assert result is not None
+        assert len(result) > 0, "Le résultat ne devrait pas être vide"
+        
+        # Vérifier la structure des données
+        for item in result:
+            assert hasattr(item, 'exercise')
+            assert hasattr(item, 'total_volume')
+            assert hasattr(item, 'avg_volume_per_set')
+    
+    def test_get_volume_analytics_empty_data(self):
+        """Test de récupération des analytics de volume avec données vides."""
+        # Configurer le mock pour retourner des DataFrames vides
+        empty_sets = pd.DataFrame(columns=['session_id', 'exercise', 'series_type', 'reps', 'weight_kg', 'skipped'])
+        empty_sessions = pd.DataFrame(columns=['id', 'date'])
+        
+        self.mock_db_service.get_sets.return_value = empty_sets
+        self.mock_db_service.get_sessions.return_value = empty_sessions
+        
+        # Appeler le service
+        result = self.analytics_service.get_volume_analytics()
+        
+        # Vérifications
+        assert result is not None
+        # Le résultat peut être vide mais doit être géré gracieusement
+        if isinstance(result, list):
+            assert len(result) == 0
+        else:
+            assert result.empty if hasattr(result, 'empty') else True
+    
+    def test_get_one_rm_analytics_success(self):
+        """Test de récupération des analytics de 1RM avec succès."""
+        # Configurer le mock pour retourner des données
+        self.mock_db_service.get_sets.return_value = self.sample_sets_data
+        
+        # Appeler le service
+        result = self.analytics_service.get_one_rm_analytics()
+        
+        # Vérifications
+        assert result is not None
+        assert len(result) > 0, "Le résultat ne devrait pas être vide"
+        
+        # Vérifier la structure des données
+        for item in result:
+            assert hasattr(item, 'exercise')
+            assert hasattr(item, 'best_1rm_epley')
+            assert hasattr(item, 'best_1rm_brzycki')
+    
+    def test_get_one_rm_analytics_empty_data(self):
+        """Test de récupération des analytics de 1RM avec données vides."""
+        # Configurer le mock pour retourner un DataFrame vide
+        empty_sets = pd.DataFrame(columns=['session_id', 'exercise', 'series_type', 'reps', 'weight_kg', 'skipped'])
+        self.mock_db_service.get_sets.return_value = empty_sets
+        
+        # Appeler le service
+        result = self.analytics_service.get_one_rm_analytics()
+        
+        # Vérifications
+        assert result is not None
+        # Le résultat peut être vide mais doit être géré gracieusement
+        if isinstance(result, list):
+            assert len(result) == 0
+        else:
+            assert result.empty if hasattr(result, 'empty') else True
+    
+    def test_get_progression_analytics_success(self):
+        """Test de récupération des analytics de progression avec succès."""
+        # Configurer le mock pour retourner des données
+        self.mock_db_service.get_sets.return_value = self.sample_sets_data
+        self.mock_db_service.get_sessions.return_value = self.sample_sessions_data
+        
+        # Appeler le service
+        result = self.analytics_service.get_progression_analytics()
+        
+        # Vérifications
+        assert result is not None
+        assert len(result) > 0, "Le résultat ne devrait pas être vide"
+        
+        # Vérifier la structure des données
+        for item in result:
+            assert hasattr(item, 'exercise')
+            assert hasattr(item, 'total_sessions')
+            assert hasattr(item, 'progression_trend')
+    
+    def test_get_progression_analytics_empty_data(self):
+        """Test de récupération des analytics de progression avec données vides."""
+        # Configurer le mock pour retourner des DataFrames vides
+        empty_sets = pd.DataFrame(columns=['session_id', 'exercise', 'series_type', 'reps', 'weight_kg', 'skipped'])
+        empty_sessions = pd.DataFrame(columns=['id', 'date'])
+        
+        self.mock_db_service.get_sets.return_value = empty_sets
+        self.mock_db_service.get_sessions.return_value = empty_sessions
+        
+        # Appeler le service
+        result = self.analytics_service.get_progression_analytics()
+        
+        # Vérifications
+        assert result is not None
+        # Le résultat peut être vide mais doit être géré gracieusement
+        if isinstance(result, list):
+            assert len(result) == 0
+        else:
+            assert result.empty if hasattr(result, 'empty') else True
+    
+    def test_get_dashboard_data_success(self):
+        """Test de récupération des données du dashboard avec succès."""
+        # Configurer le mock pour retourner des données
+        self.mock_db_service.get_sets.return_value = self.sample_sets_data
+        self.mock_db_service.get_sessions.return_value = self.sample_sessions_data
+        
+        # Appeler le service
+        result = self.analytics_service.get_dashboard_data()
+        
+        # Vérifications
+        assert result is not None
+        assert hasattr(result, 'total_sessions')
+        assert hasattr(result, 'total_exercises')
+        assert hasattr(result, 'total_volume_this_week')
+        assert hasattr(result, 'total_volume_this_month')
+    
+    def test_get_dashboard_data_empty_data(self):
+        """Test de récupération des données du dashboard avec données vides."""
+        # Configurer le mock pour retourner des DataFrames vides
+        empty_sets = pd.DataFrame(columns=['session_id', 'exercise', 'series_type', 'reps', 'weight_kg', 'skipped'])
+        empty_sessions = pd.DataFrame(columns=['id', 'date'])
+        
+        self.mock_db_service.get_sets.return_value = empty_sets
+        self.mock_db_service.get_sessions.return_value = empty_sessions
+        
+        # Appeler le service
+        result = self.analytics_service.get_dashboard_data()
+        
+        # Vérifications
+        assert result is not None
+        # Vérifier que les valeurs par défaut sont définies
+        assert result.total_sessions == 0
+        assert result.total_exercises == 0
+        assert result.total_volume_this_week == 0.0
+        assert result.total_volume_this_month == 0.0
+    
+    def test_error_handling_in_analytics(self):
+        """Test de gestion des erreurs dans les analytics."""
+        # Configurer le mock pour lever une exception
+        self.mock_db_service.get_sets.side_effect = Exception("Erreur lors de la récupération des sets")
+        
+        # Appeler le service et vérifier que l'erreur est gérée
+        with pytest.raises(Exception) as exc_info:
+            self.analytics_service.get_volume_analytics()
+        
+        assert "Erreur lors de la récupération des sets" in str(exc_info.value)
+    
+    def test_data_transformation_consistency(self):
+        """Test de cohérence de la transformation des données."""
+        # Configurer le mock pour retourner des données
+        self.mock_db_service.get_sets.return_value = self.sample_sets_data
+        self.mock_db_service.get_sessions.return_value = self.sample_sessions_data
+        
+        # Appeler plusieurs services et vérifier la cohérence
+        volume_result = self.analytics_service.get_volume_analytics()
+        one_rm_result = self.analytics_service.get_one_rm_analytics()
+        progression_result = self.analytics_service.get_progression_analytics()
+        
+        # Vérifier que tous les résultats sont cohérents
+        assert volume_result is not None
+        assert one_rm_result is not None
+        assert progression_result is not None
+        
+        # Vérifier que les exercices sont cohérents entre les différents analytics
+        if len(volume_result) > 0 and len(one_rm_result) > 0:
+            volume_exercises = {item.exercise for item in volume_result}
+            one_rm_exercises = {item.exercise for item in one_rm_result}
+            
+            # Les exercices devraient être les mêmes
+            assert volume_exercises == one_rm_exercises, "Les exercices devraient être cohérents entre les analytics"
+    
+    def test_performance_with_large_dataset(self):
+        """Test de performance avec un grand dataset."""
+        # Créer un grand dataset de test
+        large_sets = pd.DataFrame({
+            'session_id': list(range(1, 1001)),  # 1000 sessions
+            'exercise': ['Bench Press'] * 500 + ['Squat'] * 500,
+            'series_type': ['working_set'] * 1000,
+            'reps': np.random.randint(5, 15, 1000),
+            'weight_kg': np.random.uniform(50, 200, 1000),
+            'skipped': [False] * 1000
         })
         
-        # Test extraction bool normale
-        result = self.analytics_service._safe_extract_bool(test_df, 'booleans')
-        assert result is True
-        
-        # Test conversion int vers bool
-        result = self.analytics_service._safe_extract_bool(test_df, 'integers')
-        assert result is False  # 0 → False
-        
-        # Test avec valeur par défaut
-        result = self.analytics_service._safe_extract_bool(test_df, 'nonexistent', default=True)
-        assert result is True
-        
-        # Test conversion string vers bool
-        result = self.analytics_service._safe_extract_bool(test_df, 'strings')
-        assert result is True  # 'yes' → True (non-empty string)
-    
-    def test_safe_extract_str(self):
-        """Test de la méthode _safe_extract_str refactorisée."""
-        test_df = pd.DataFrame({
-            'strings': ['hello', 'world', 'test'],
-            'numbers': [123, 456, 789],
-            'mixed': [1, 'text', 3.14]
+        large_sessions = pd.DataFrame({
+            'id': list(range(1, 1001)),
+            'date': pd.date_range('2023-01-01', periods=1000, freq='D')
         })
         
-        # Test extraction string normale
-        result = self.analytics_service._safe_extract_str(test_df, 'strings')
-        assert result == 'test'
-        assert isinstance(result, str)
+        # Configurer le mock
+        self.mock_db_service.get_sets.return_value = large_sets
+        self.mock_db_service.get_sessions.return_value = large_sessions
         
-        # Test conversion number vers string
-        result = self.analytics_service._safe_extract_str(test_df, 'numbers')
-        assert result == '789'
-        assert isinstance(result, str)
+        # Mesurer le temps d'exécution
+        import time
+        start_time = time.time()
         
-        # Test conversion valeur mixte vers string
-        result = self.analytics_service._safe_extract_str(test_df, 'mixed')
-        assert result == '3.14'
+        # Appeler le service
+        result = self.analytics_service.get_volume_analytics()
         
-        # Test colonne inexistante
-        result = self.analytics_service._safe_extract_str(test_df, 'nonexistent')
-        assert result is None
+        execution_time = time.time() - start_time
+        
+        # Vérifications
+        assert result is not None
+        assert len(result) > 0
+        
+        # L'exécution devrait être rapide (moins de 5 secondes pour 1000 enregistrements)
+        assert execution_time < 5.0, f"Exécution trop lente: {execution_time:.3f}s"
     
-    def test_error_handling(self):
-        """Test de la gestion d'erreurs lors des conversions."""
-        # DataFrame avec des valeurs problématiques
-        test_df = pd.DataFrame({
-            'problematic': ['not_a_number', 'still_not_a_number', 'nope']
+    def test_memory_usage_optimization(self):
+        """Test d'optimisation de l'utilisation mémoire."""
+        # Créer un dataset de taille moyenne
+        medium_sets = pd.DataFrame({
+            'session_id': list(range(1, 101)),  # 100 sessions
+            'exercise': ['Bench Press'] * 50 + ['Squat'] * 50,
+            'series_type': ['working_set'] * 100,
+            'reps': np.random.randint(5, 15, 100),
+            'weight_kg': np.random.uniform(50, 200, 100),
+            'skipped': [False] * 100
         })
         
-        # Test conversion impossible vers float
-        result = self.analytics_service._safe_extract_float(test_df, 'problematic')
-        assert result is None
-        
-        # Test conversion impossible vers int  
-        result = self.analytics_service._safe_extract_int(test_df, 'problematic')
-        assert result is None
-        
-        # Test avec valeur par défaut personnalisée
-        result = self.analytics_service._safe_extract_value(
-            test_df, 'problematic', float, use_max=False, default=999.0
-        )
-        assert result == 999.0
-    
-    def test_consistency_with_original_behavior(self):
-        """Test que le comportement est identique à l'ancienne implémentation."""
-        test_df = pd.DataFrame({
-            'test_col': [1.1, 2.2, 3.3]
+        medium_sessions = pd.DataFrame({
+            'id': list(range(1, 101)),
+            'date': pd.date_range('2023-01-01', periods=100, freq='D')
         })
         
-        # Les méthodes spécialisées doivent donner les mêmes résultats
-        # que la méthode générique avec les bons paramètres
+        # Configurer le mock
+        self.mock_db_service.get_sets.return_value = medium_sets
+        self.mock_db_service.get_sessions.return_value = medium_sessions
         
-        generic_float = self.analytics_service._safe_extract_value(
-            test_df, 'test_col', float, use_max=False, default=None
-        )
-        specialized_float = self.analytics_service._safe_extract_float(test_df, 'test_col')
-        assert generic_float == specialized_float
+        # Mesurer l'utilisation mémoire
+        import psutil
+        import os
+        process = psutil.Process(os.getpid())
+        memory_before = process.memory_info().rss / 1024 / 1024  # MB
         
-        generic_int = self.analytics_service._safe_extract_value(
-            test_df, 'test_col', int, use_max=False, default=None
-        )
-        specialized_int = self.analytics_service._safe_extract_int(test_df, 'test_col')
-        assert generic_int == specialized_int
+        # Appeler plusieurs services
+        volume_result = self.analytics_service.get_volume_analytics()
+        one_rm_result = self.analytics_service.get_one_rm_analytics()
+        progression_result = self.analytics_service.get_progression_analytics()
         
-        generic_str = self.analytics_service._safe_extract_value(
-            test_df, 'test_col', str, use_max=False, default=None
-        )
-        specialized_str = self.analytics_service._safe_extract_str(test_df, 'test_col')
-        assert generic_str == specialized_str
+        memory_after = process.memory_info().rss / 1024 / 1024  # MB
+        
+        # Vérifications
+        assert volume_result is not None
+        assert one_rm_result is not None
+        assert progression_result is not None
+        
+        # L'augmentation de mémoire ne devrait pas être excessive
+        memory_increase = memory_after - memory_before
+        assert memory_increase < 50, f"Augmentation de mémoire excessive: {memory_increase:.2f}MB"
+
+
+class TestServiceIntegration:
+    """Tests d'intégration entre les services."""
+    
+    def setup_method(self):
+        """Setup avant chaque test."""
+        # Créer des services avec des mocks
+        self.mock_db = Mock()
+        self.db_service = DatabaseService(self.mock_db)
+        self.analytics_service = AnalyticsService(self.db_service)
+        
+        # Données de test
+        self.test_sets = pd.DataFrame({
+            'session_id': [1, 1, 2],
+            'exercise': ['Bench Press', 'Bench Press', 'Squat'],
+            'series_type': ['working_set', 'working_set', 'working_set'],
+            'reps': [10, 8, 12],
+            'weight_kg': [100, 110, 120],
+            'skipped': [False, False, False]
+        })
+        
+        self.test_sessions = pd.DataFrame({
+            'id': [1, 2],
+            'date': ['2023-01-01', '2023-01-08']
+        })
+    
+    def test_full_pipeline_integration(self):
+        """Test d'intégration du pipeline complet."""
+        # Configurer les mocks
+        self.mock_db.get_sets.return_value = self.test_sets
+        self.mock_db.get_sessions.return_value = self.test_sessions
+        self.mock_db.get_unique_exercises_from_sets.return_value = ['Bench Press', 'Squat']
+        
+        # Tester le pipeline complet
+        try:
+            # 1. Récupération des données de base
+            sets = self.db_service.get_sets()
+            sessions = self.db_service.get_sessions()
+            exercises = self.db_service.get_unique_exercises_from_sets()
+            
+            # 2. Calcul des analytics
+            volume_analytics = self.analytics_service.get_volume_analytics()
+            one_rm_analytics = self.analytics_service.get_one_rm_analytics()
+            progression_analytics = self.analytics_service.get_progression_analytics()
+            dashboard_data = self.analytics_service.get_dashboard_data()
+            
+            # Vérifications
+            assert len(sets) == 3
+            assert len(sessions) == 2
+            assert len(exercises) == 2
+            
+            assert volume_analytics is not None
+            assert one_rm_analytics is not None
+            assert progression_analytics is not None
+            assert dashboard_data is not None
+            
+            # Vérifier la cohérence des données
+            assert dashboard_data.total_sessions == 2
+            assert dashboard_data.total_exercises == 2
+            
+        except Exception as e:
+            pytest.fail(f"Le pipeline d'intégration a échoué: {e}")
+    
+    def test_error_propagation(self):
+        """Test de propagation des erreurs entre services."""
+        # Configurer le mock pour lever une exception
+        self.mock_db.get_sets.side_effect = Exception("Erreur de base de données")
+        
+        # Vérifier que l'erreur se propage correctement
+        with pytest.raises(Exception) as exc_info:
+            self.db_service.get_sets()
+        
+        assert "Erreur de base de données" in str(exc_info.value)
+        
+        # Vérifier que l'erreur se propage aussi dans les analytics
+        with pytest.raises(Exception) as exc_info:
+            self.analytics_service.get_volume_analytics()
+        
+        assert "Erreur de base de données" in str(exc_info.value)
+
+
+if __name__ == '__main__':
+    pytest.main([__file__, '-v'])

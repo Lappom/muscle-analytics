@@ -527,16 +527,26 @@ class AnalyticsService:
         if total_sessions < 3:
             return 'unknown'
         
-        # Priorité à la tendance 7 jours si disponible (plus récente)
-        primary_trend = volume_trend_7d if volume_trend_7d is not None else volume_trend_30d
-        
-        if primary_trend is None:
+        # Vérifier si aucune tendance n'est disponible
+        if volume_trend_7d is None and volume_trend_30d is None:
             return 'unknown'
         
-        # Seuils pour déterminer la tendance
-        if primary_trend > 5.0:
+        # Analyse pondérée des deux tendances pour une évaluation plus complète
+        short_term_weight = 0.6  # Poids plus important pour la tendance récente
+        long_term_weight = 0.4   # Poids pour la tendance à long terme
+        
+        if volume_trend_7d is not None and volume_trend_30d is not None:
+            # Calcul de la tendance pondérée combinant les deux périodes
+            weighted_trend = (volume_trend_7d * short_term_weight + 
+                            volume_trend_30d * long_term_weight)
+        else:
+            # Utiliser la seule tendance disponible
+            weighted_trend = volume_trend_7d if volume_trend_7d is not None else volume_trend_30d
+        
+        # Seuils pour déterminer la tendance basée sur l'analyse pondérée
+        if weighted_trend > 5.0:
             return 'positive'
-        elif primary_trend < -5.0:
+        elif weighted_trend < -5.0:
             return 'negative'
         else:
             return 'stable'
@@ -569,9 +579,30 @@ class AnalyticsService:
             nb_weeks = max(1, ((last_date - first_date).days / 7))
             weekly_frequency = len(all_sessions) / nb_weeks
             
-            # Score de régularité optimisé
-            week_numbers = set((s.date.isocalendar()[0], s.date.isocalendar()[1]) for s in all_sessions)
-            consistency_score = len(week_numbers) / nb_weeks
+            # Score de régularité optimisé avec gestion des semaines partielles
+            def _get_week_number(session_date):
+                """Extrait le numéro de semaine ISO d'une date de session"""
+                year, week, _ = session_date.isocalendar()
+                return (year, week)
+            
+            # Calcul des semaines actives (avec sessions)
+            week_numbers = set(_get_week_number(s.date) for s in all_sessions)
+            
+            # Gestion des semaines partielles pour un calcul plus précis
+            today = date.today()
+            current_week = today.isocalendar()[1]
+            last_session_week = last_date.isocalendar()[1]
+            
+            # Ajuster le nombre total de semaines si on est dans la semaine actuelle
+            # et qu'elle contient des sessions
+            if last_session_week == current_week and len(week_numbers) > 0:
+                # Compter la semaine actuelle seulement si elle a des sessions
+                total_weeks_for_consistency = nb_weeks
+            else:
+                # Exclure la semaine actuelle si elle n'a pas de sessions
+                total_weeks_for_consistency = max(1, nb_weeks - 1)
+            
+            consistency_score = len(week_numbers) / total_weeks_for_consistency
 
             # Volume optimisé - une seule requête avec agrégation
             today = date.today()
@@ -618,56 +649,70 @@ class AnalyticsService:
             )
     
     def _get_optimized_volume_data(self, week_start: date, month_start: date) -> Dict:
-        """Récupère les données de volume de manière optimisée"""
+        """Récupère les données de volume de manière optimisée avec une seule requête"""
         try:
-            # Récupération du volume total avec une seule requête SQL
-            volume_query = """
+            # Requête combinée pour récupérer toutes les données de volume en une seule fois
+            combined_volume_query = """
+            WITH volume_stats AS (
+                SELECT 
+                    exercise,
+                    SUM(weight_kg * reps) as total_volume,
+                    AVG(weight_kg * reps) as avg_volume_per_set,
+                    COUNT(*) as total_sets
+                FROM sets 
+                WHERE weight_kg IS NOT NULL AND reps IS NOT NULL
+                GROUP BY exercise
+                ORDER BY total_volume DESC
+                LIMIT 10
+            ),
+            week_volume AS (
+                SELECT SUM(weight_kg * reps) as week_volume
+                FROM sets s
+                JOIN sessions sess ON s.session_id = sess.id
+                WHERE s.weight_kg IS NOT NULL AND s.reps IS NOT NULL
+                AND sess.date >= %s
+            ),
+            month_volume AS (
+                SELECT SUM(weight_kg * reps) as month_volume
+                FROM sets s
+                JOIN sessions sess ON s.session_id = sess.id
+                WHERE s.weight_kg IS NOT NULL AND s.reps IS NOT NULL
+                AND sess.date >= %s
+            )
             SELECT 
-                exercise,
-                SUM(weight_kg * reps) as total_volume,
-                AVG(weight_kg * reps) as avg_volume_per_set,
-                COUNT(*) as total_sets
-            FROM sets 
-            WHERE weight_kg IS NOT NULL AND reps IS NOT NULL
-            GROUP BY exercise
-            ORDER BY total_volume DESC
-            LIMIT 10
+                v.exercise,
+                v.total_volume,
+                v.avg_volume_per_set,
+                v.total_sets,
+                w.week_volume,
+                m.month_volume
+            FROM volume_stats v
+            CROSS JOIN week_volume w
+            CROSS JOIN month_volume m
             """
             
-            volume_results = self.db_service.db.execute_query(volume_query)
+            combined_results = self.db_service.db.execute_query(combined_volume_query, (week_start, month_start))
             
-            # Calcul des volumes par période
-            week_volume_query = """
-            SELECT SUM(weight_kg * reps) as week_volume
-            FROM sets s
-            JOIN sessions sess ON s.session_id = sess.id
-            WHERE s.weight_kg IS NOT NULL AND s.reps IS NOT NULL
-            AND sess.date >= %s
-            """
-            
-            month_volume_query = """
-            SELECT SUM(weight_kg * reps) as month_volume
-            FROM sets s
-            JOIN sessions sess ON s.session_id = sess.id
-            WHERE s.weight_kg IS NOT NULL AND s.reps IS NOT NULL
-            AND sess.date >= %s
-            """
-            
-            week_result = self.db_service.db.execute_query(week_volume_query, (week_start,))
-            month_result = self.db_service.db.execute_query(month_volume_query, (month_start,))
-            
-            week_volume = week_result[0][0] if week_result and week_result[0][0] else 0.0
-            month_volume = month_result[0][0] if month_result and month_result[0][0] else 0.0
-            
-            # Construction des objets VolumeStats
+            # Extraction des volumes par période (première ligne contient les données)
+            week_volume = 0.0
+            month_volume = 0.0
             top_exercises = []
-            for row in volume_results:
-                top_exercises.append(VolumeStats(
-                    exercise=row[0],
-                    total_volume=float(row[1]) if row[1] else 0.0,
-                    avg_volume_per_set=float(row[2]) if row[2] else 0.0,
-                    avg_volume_per_session=0.0  # Calculé plus tard si nécessaire
-                ))
+            
+            if combined_results:
+                # Les volumes par période sont identiques pour toutes les lignes
+                week_volume = float(combined_results[0][4]) if combined_results[0][4] else 0.0
+                month_volume = float(combined_results[0][5]) if combined_results[0][5] else 0.0
+                
+                # Construction des objets VolumeStats
+                for row in combined_results:
+                    top_exercises.append(VolumeStats(
+                        exercise=row[0],
+                        total_volume=float(row[1]) if row[1] else 0.0,
+                        avg_volume_per_set=float(row[2]) if row[2] else 0.0,
+                        avg_volume_per_session=0.0  # Calculé plus tard si nécessaire
+                    ))
+            
+
             
             return {
                 'week': week_volume,
