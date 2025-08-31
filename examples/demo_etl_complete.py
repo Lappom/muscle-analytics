@@ -17,8 +17,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
 from etl.pipeline import ETLPipeline
-from database import DatabaseManager
+from src.database import DatabaseManager
 from etl.import_scripts import ETLImporter
+from config.database import get_db_config
 
 # Configuration du logging
 logging.basicConfig(
@@ -37,14 +38,9 @@ def test_database_connection():
     """Test la connexion à la base de données"""
     logger.info("=== TEST DE CONNEXION À LA BASE DE DONNÉES ===")
     
-    # Utilisation des paramètres Docker
-    db_manager = DatabaseManager(
-        host="localhost",
-        port=5432,
-        database="muscle_analytics",
-        user="dev",
-        password="devpass"
-    )
+    # Utilisation de la configuration automatique (détecte l'environnement)
+    db_config = get_db_config()
+    db_manager = DatabaseManager(**db_config)
     
     if db_manager.test_connection():
         logger.info("CONNEXION RÉUSSIE à la base de données")
@@ -116,14 +112,9 @@ def test_database_import():
     """Test l'import en base de données"""
     logger.info("=== TEST D'IMPORT EN BASE DE DONNÉES ===")
     
-    # Utilisation des paramètres Docker
-    db_manager = DatabaseManager(
-        host="localhost",
-        port=5432,
-        database="muscle_analytics",
-        user="dev",
-        password="devpass"
-    )
+    # Utilisation de la configuration automatique
+    db_config = get_db_config()
+    db_manager = DatabaseManager(**db_config)
     importer = ETLImporter(db_manager)
     examples_dir = Path(__file__).parent
     
@@ -170,14 +161,9 @@ def test_incremental_import():
     """Test l'import incrémental"""
     logger.info("=== TEST D'IMPORT INCRÉMENTAL ===")
     
-    # Utilisation des paramètres Docker
-    db_manager = DatabaseManager(
-        host="localhost",
-        port=5432,
-        database="muscle_analytics",
-        user="dev",
-        password="devpass"
-    )
+    # Utilisation de la configuration automatique
+    db_config = get_db_config()
+    db_manager = DatabaseManager(**db_config)
     importer = ETLImporter(db_manager)
     examples_dir = Path(__file__).parent
     
@@ -203,14 +189,9 @@ def generate_demo_report():
     
     try:
         pipeline = ETLPipeline()
-        # Utilisation des paramètres Docker
-        db_manager = DatabaseManager(
-            host="localhost",
-            port=5432,
-            database="muscle_analytics",
-            user="dev",
-            password="devpass"
-        )
+        # Utilisation de la configuration automatique
+        db_config = get_db_config()
+        db_manager = DatabaseManager(**db_config)
         
         # Statistiques finales de la base
         if db_manager.test_connection():

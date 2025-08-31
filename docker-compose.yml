@@ -40,5 +40,26 @@ services:
       - ./tests:/app/tests
       - ./examples:/app/examples
 
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.streamlit
+    ports:
+      - "8501:8501"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      APP_ENV: docker
+      API_BASE_URL: http://api:8000
+      API_TIMEOUT: "30"
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: muscle_analytics
+      DB_USER: dev
+      DB_PASSWORD: devpass
+    volumes:
+      - ./src:/app/src
+
 volumes:
   postgres_data:

@@ -21,7 +21,7 @@ try:
         DatabaseConfig, DatabaseEnvironment, 
         get_db_config, setup_database_environment
     )
-    from database import DatabaseManager
+    from src.database import DatabaseManager
 except ImportError as e:
     print(f"❌ Erreur d'import: {e}")
     print("💡 Assurez-vous que le package muscle-analytics est installé:")

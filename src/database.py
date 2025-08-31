@@ -445,6 +445,59 @@ class DatabaseManager:
         except Exception as e:
             raise DatabaseError(f"Erreur lors de l'insertion d'exercice: {e}")
     
+    def _insert_session_with_cursor(self, cursor, date: date, start_time: Optional[str] = None, 
+                                   training_name: Optional[str] = None, notes: Optional[str] = None) -> int:
+        """Version interne qui utilise un cursor existant"""
+        # Vérifier si une session existe déjà
+        cursor.execute("""
+            SELECT id FROM sessions 
+            WHERE date = %s AND start_time = %s AND training_name = %s
+        """, (date, start_time, training_name))
+        
+        existing = cursor.fetchone()
+        if existing:
+            logger.info(f"Session existante trouvée: ID {existing[0]}")
+            return existing[0]
+        
+        # Insérer nouvelle session
+        cursor.execute("""
+            INSERT INTO sessions (date, start_time, training_name, notes)
+            VALUES (%s, %s, %s, %s) RETURNING id
+        """, (date, start_time, training_name, notes))
+        
+        session_id = cursor.fetchone()[0]
+        logger.info(f"Nouvelle session créée: ID {session_id}")
+        return session_id
+
+    def _insert_set_with_cursor(self, cursor, session_id: int, exercise: str, reps: Optional[int] = None,
+                               weight_kg: Optional[float] = None, series_type: Optional[str] = None,
+                               notes: Optional[str] = None, skipped: bool = False) -> int:
+        """Version interne qui utilise un cursor existant"""
+        cursor.execute("""
+            INSERT INTO sets (session_id, exercise, reps, weight_kg, 
+                            series_type, notes, skipped)
+            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+        """, (session_id, exercise, reps, weight_kg, series_type, notes, skipped))
+        
+        set_id = cursor.fetchone()[0]
+        logger.debug(f"Série insérée: ID {set_id}")
+        return set_id
+
+    def _insert_exercise_catalog_with_cursor(self, cursor, name: str, main_region: str,
+                                           muscles_primary: List[str], muscles_secondary: List[str]) -> bool:
+        """Version interne qui utilise un cursor existant"""
+        cursor.execute("""
+            INSERT INTO exercises (name, main_region, muscles_primary, muscles_secondary)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (name) DO UPDATE SET
+                main_region = EXCLUDED.main_region,
+                muscles_primary = EXCLUDED.muscles_primary,
+                muscles_secondary = EXCLUDED.muscles_secondary
+        """, (name, main_region, muscles_primary, muscles_secondary))
+        
+        logger.debug(f"Exercice '{name}' ajouté/mis à jour dans le catalogue")
+        return True
+    
     def bulk_insert_from_dataframe(self, df: pd.DataFrame) -> Dict[str, int]:
         """
         Insertion en masse depuis un DataFrame normalisé.
@@ -466,69 +519,84 @@ class DatabaseManager:
             logger.warning("DataFrame vide, aucune insertion effectuée")
             return stats
         
+        # Utiliser une seule connexion pour toutes les opérations avec transaction
         try:
-            # Grouper par sessions (date + training + time)
-            session_groups = df.groupby(['date', 'training', 'time'], dropna=False)
-            
-            for (session_date, training_name, start_time), session_data in session_groups:
-                try:
-                    # Convertir la date si nécessaire
-                    if isinstance(session_date, str):
-                        session_date = pd.to_datetime(session_date).date()
+            with self.get_connection() as conn:
+                with conn.cursor() as cursor:
+                    # Grouper par sessions (date + training + time)
+                    session_groups = df.groupby(['date', 'training', 'time'], dropna=False)
                     
-                    # Insérer la session
-                    session_id = self.insert_session(
-                        date=session_date,
-                        start_time=start_time if pd.notna(start_time) else None,
-                        training_name=training_name if pd.notna(training_name) else None
-                    )
-                    
-                    # Vérifier si c'est une nouvelle session
-                    if session_id:
-                        stats['sessions_created'] += 1
-                    
-                    # Insérer les séries de cette session
-                    for _, row in session_data.iterrows():
+                    for (session_date, training_name, start_time), session_data in session_groups:
                         try:
-                            # Ajouter l'exercice au catalogue si nouvelles infos disponibles
-                            if all(col in row and pd.notna(row[col]) for col in 
-                                  ['exercise', 'main_region', 'muscles_primary']):
-                                
-                                primary_muscles = self._parse_muscle_list(row['muscles_primary'])
-                                secondary_muscles = self._parse_muscle_list(row['muscles_secondary'])
-                                
-                                self.insert_exercise_catalog(
-                                    name=row['exercise'],
-                                    main_region=row['main_region'],
-                                    muscles_primary=primary_muscles,
-                                    muscles_secondary=secondary_muscles
-                                )
-                                stats['exercises_added'] += 1
+                            # Convertir la date si nécessaire
+                            if isinstance(session_date, str):
+                                session_date = pd.to_datetime(session_date).date()
                             
-                            # Insérer la série
-                            self.insert_set(
-                                session_id=session_id,
-                                exercise=row['exercise'],
-                                reps=int(row['reps']) if pd.notna(row['reps']) and row['reps'] != '' else None,
-                                weight_kg=float(row['weight_kg']) if pd.notna(row['weight_kg']) else None,
-                                series_type=row.get('series_type'),
-                                notes=row.get('notes') if pd.notna(row.get('notes')) else None,
-                                skipped=bool(row.get('skipped', False))
+                            # Insérer la session avec la même connexion/transaction
+                            session_id = self._insert_session_with_cursor(
+                                cursor, 
+                                date=session_date,
+                                start_time=start_time if pd.notna(start_time) else None,
+                                training_name=training_name if pd.notna(training_name) else None
                             )
-                            stats['sets_inserted'] += 1
                             
+                            # Vérifier si c'est une nouvelle session
+                            if session_id:
+                                stats['sessions_created'] += 1
+                            
+                            # Insérer les séries de cette session
+                            for _, row in session_data.iterrows():
+                                try:
+                                    # Ajouter l'exercice au catalogue si nouvelles infos disponibles
+                                    exercise_val = row.get('exercise')
+                                    region_val = row.get('region')
+                                    muscles_primary_val = row.get('muscles_primary')
+                                    
+                                    # Vérifier si les informations d'exercice sont disponibles
+                                    has_exercise = exercise_val is not None and not (isinstance(exercise_val, float) and pd.isna(exercise_val))
+                                    has_region = region_val is not None and not (isinstance(region_val, float) and pd.isna(region_val))
+                                    has_muscles = muscles_primary_val is not None and not (isinstance(muscles_primary_val, float) and pd.isna(muscles_primary_val))
+                                    
+                                    if has_exercise and has_region and has_muscles:
+                                        primary_muscles = self._parse_muscle_list(muscles_primary_val)
+                                        secondary_muscles = self._parse_muscle_list(row.get('muscles_secondary'))
+                                        
+                                        self._insert_exercise_catalog_with_cursor(
+                                            cursor,
+                                            name=str(exercise_val),
+                                            main_region=str(region_val),
+                                            muscles_primary=primary_muscles,
+                                            muscles_secondary=secondary_muscles
+                                        )
+                                        stats['exercises_added'] += 1
+                                    
+                                    # Insérer la série avec la même connexion/transaction
+                                    self._insert_set_with_cursor(
+                                        cursor,
+                                        session_id=session_id,
+                                        exercise=row['exercise'],
+                                        reps=int(row['reps']) if pd.notna(row['reps']) and row['reps'] != '' else None,
+                                        weight_kg=float(row['weight_kg']) if pd.notna(row['weight_kg']) else None,
+                                        series_type=row.get('series_type'),
+                                        notes=row.get('notes') if pd.notna(row.get('notes')) else None,
+                                        skipped=bool(row.get('skipped', False))
+                                    )
+                                    stats['sets_inserted'] += 1
+                                    
+                                except Exception as e:
+                                    logger.error(f"Erreur lors de l'insertion d'une série: {e}")
+                                    stats['errors'] += 1
+                                    continue
+                        
                         except Exception as e:
-                            logger.error(f"Erreur lors de l'insertion d'une série: {e}")
+                            logger.error(f"Erreur lors de l'insertion de session: {e}")
                             stats['errors'] += 1
                             continue
-                
-                except Exception as e:
-                    logger.error(f"Erreur lors de l'insertion de session: {e}")
-                    stats['errors'] += 1
-                    continue
-            
-            logger.info(f"Insertion terminée: {stats}")
-            return stats
+                    
+                    # Commit de toutes les opérations en une seule fois
+                    conn.commit()
+                    logger.info(f"Insertion terminée: {stats}")
+                    return stats
             
         except Exception as e:
             raise DatabaseError(f"Erreur lors de l'insertion en masse: {e}")

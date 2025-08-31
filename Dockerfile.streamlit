@@ -1,0 +1,35 @@
+FROM python:3.11-slim
+
+# Installation des dépendances système
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Définition du répertoire de travail
+WORKDIR /app
+
+# Copie des fichiers de dépendances
+COPY requirements.txt .
+
+# Installation des dépendances Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copie du code source
+COPY src/ src/
+
+# Copie de la configuration Streamlit (thème clair)
+COPY .streamlit/ .streamlit/
+
+# Ajout du répertoire actuel au PYTHONPATH
+ENV PYTHONPATH="/app"
+
+# Exposition du port Streamlit
+EXPOSE 8501
+
+# Variables d'environnement pour Streamlit
+ENV STREAMLIT_SERVER_PORT=8501
+ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
+ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+
+# Commande de démarrage
+CMD ["streamlit", "run", "src/dashboard/app.py", "--server.address", "0.0.0.0", "--server.port", "8501"]

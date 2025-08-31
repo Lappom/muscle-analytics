@@ -101,24 +101,104 @@ class CSVParser:
             raise CSVParserError(f"Erreur lors du parsing du CSV {file_path}: {str(e)}")
     
     def _read_csv_with_fallback(self, file_path: Path) -> pd.DataFrame:
-        """Lit le CSV en testant plusieurs encodages"""
-        encodings = [self.encoding, 'utf-8', 'cp1252', 'iso-8859-1']
+        """Lit le CSV en testant plusieurs encodages et stratégies de parsing"""
+        # Encodages à tester, incluant UTF-16 pour les fichiers avec BOM
+        encodings = [self.encoding, 'utf-8', 'utf-16', 'utf-16le', 'utf-16be', 'cp1252', 'iso-8859-1']
+        
+        # Stratégies de parsing à essayer
+        parsing_strategies = [
+            # Stratégie standard
+            {
+                'sep': ',',
+                'quotechar': '"',
+                'skipinitialspace': True,
+                'escapechar': None,
+                'on_bad_lines': 'error'
+            },
+            # Stratégie avec gestion des erreurs tolérante
+            {
+                'sep': ',',
+                'quotechar': '"',
+                'skipinitialspace': True,
+                'escapechar': None,
+                'on_bad_lines': 'skip'
+            },
+            # Stratégie avec échappement
+            {
+                'sep': ',',
+                'quotechar': '"',
+                'skipinitialspace': True,
+                'escapechar': '\\',
+                'on_bad_lines': 'skip'
+            },
+            # Stratégie avec quote minimal
+            {
+                'sep': ',',
+                'quotechar': '"',
+                'skipinitialspace': True,
+                'quoting': 1,  # QUOTE_ALL
+                'on_bad_lines': 'skip'
+            }
+        ]
         
         for encoding in encodings:
-            try:
-                df = pd.read_csv(
-                    file_path,
-                    encoding=encoding,
-                    sep=',',
-                    quotechar='"',
-                    skipinitialspace=True
-                )
-                logger.debug(f"CSV lu avec l'encodage {encoding}")
-                return df
-            except UnicodeDecodeError:
-                continue
+            for strategy in parsing_strategies:
+                try:
+                    # Vérification de la version de pandas pour compatibilité
+                    pandas_version = pd.__version__
+                    
+                    # Pour pandas < 1.3.0, utiliser error_bad_lines au lieu de on_bad_lines
+                    if pandas_version < '1.3.0':
+                        strategy_copy = strategy.copy()
+                        if 'on_bad_lines' in strategy_copy:
+                            if strategy_copy['on_bad_lines'] == 'skip':
+                                strategy_copy['error_bad_lines'] = False
+                            else:
+                                strategy_copy['error_bad_lines'] = True
+                            del strategy_copy['on_bad_lines']
+                        strategy = strategy_copy
+                    
+                    df = pd.read_csv(
+                        file_path,
+                        encoding=encoding,
+                        **strategy
+                    )
+                    
+                    # Vérification et nettoyage des colonnes avec BOM
+                    if not df.empty and len(df.columns) > 0:
+                        first_col = df.columns[0]
+                        # Détection et suppression du BOM UTF-16/UTF-8
+                        if first_col.startswith('\ufeff') or first_col.startswith('ÿþ') or 'ÿþ' in first_col:
+                            logger.debug(f"BOM détecté dans la première colonne: {repr(first_col)}")
+                            # Nettoyage du nom de la première colonne
+                            cleaned_first_col = first_col.replace('\ufeff', '').replace('ÿþ', '').strip()
+                            if cleaned_first_col:
+                                df = df.rename(columns={first_col: cleaned_first_col})
+                            else:
+                                # Si la première colonne est vide après nettoyage, on tente de réorganiser
+                                if len(df.columns) > 12:  # Plus de colonnes que prévu
+                                    # Supprimer les colonnes vides au début
+                                    cols_to_drop = []
+                                    for col in df.columns:
+                                        if col.startswith('Unnamed:') or 'ÿþ' in col or col.strip() == '':
+                                            cols_to_drop.append(col)
+                                        else:
+                                            break
+                                    if cols_to_drop:
+                                        df = df.drop(columns=cols_to_drop)
+                                        logger.debug(f"Colonnes supprimées: {cols_to_drop}")
+                    
+                    logger.debug(f"CSV lu avec l'encodage {encoding} et stratégie {strategy}")
+                    return df
+                    
+                except (UnicodeDecodeError, pd.errors.ParserError) as e:
+                    logger.debug(f"Échec avec encodage {encoding} et stratégie {strategy}: {e}")
+                    continue
+                except Exception as e:
+                    logger.debug(f"Erreur inattendue avec encodage {encoding}: {e}")
+                    continue
                 
-        raise CSVParserError(f"Impossible de lire le fichier avec les encodages: {encodings}")
+        raise CSVParserError(f"Impossible de lire le fichier avec tous les encodages et stratégies testés")
     
     def _normalize_column_names(self, df: pd.DataFrame) -> pd.DataFrame:
         """Normalise les noms de colonnes selon le mapping"""

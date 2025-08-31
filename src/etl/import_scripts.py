@@ -11,7 +11,7 @@ import logging
 from datetime import datetime, date, timedelta
 
 from .pipeline import ETLPipeline
-from database import DatabaseManager, DatabaseError
+from src.database import get_database, DatabaseManager, DatabaseError
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class ETLImporter:
             db_manager: Gestionnaire de base de données (optionnel)
         """
         self.pipeline = ETLPipeline()
-        self.db_manager = db_manager or DatabaseManager()
+        self.db_manager = db_manager or get_database()
         
         # Test de connexion à l'initialisation
         if not self.db_manager.test_connection():
