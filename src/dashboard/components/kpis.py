@@ -153,22 +153,8 @@ def _display_alerts_and_recommendations(dashboard_data: Dict):
             st.session_state.show_plateau_analysis = True
             st.rerun()
     else:
-        # Aucun plateau détecté - afficher un message de succès
-        st.success("🎉 **Aucun plateau détecté !** Votre progression est régulière.")
-        
-        # Métriques positives
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            total_exercises = dashboard_data.get('total_exercises', 0)
-            st.metric("Total exercices", total_exercises, delta_color="normal")
-        
-        with col2:
-            weekly_frequency = dashboard_data.get('weekly_frequency', 0)
-            st.metric("Fréquence hebdomadaire", f"{weekly_frequency}/sem", delta_color="normal")
-        
-        with col3:
-            consistency_score = dashboard_data.get('consistency_score', 0)
-            st.metric("Score de régularité", f"{consistency_score:.1f}", delta_color="normal")
+        # Aucun plateau détecté - pas d'affichage spécial
+        pass
     
     # Alertes sur la fréquence d'entraînement
     weekly_frequency = dashboard_data.get('weekly_frequency', 0)
