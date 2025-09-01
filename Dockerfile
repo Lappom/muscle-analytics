@@ -16,7 +16,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 COPY tests/ ./tests/
 COPY examples/ ./examples/
-COPY run_api.py ./
+COPY scripts/run_api.py ./run_api.py
 
 # Set environment variable for API
 ENV APP_ENV=docker
