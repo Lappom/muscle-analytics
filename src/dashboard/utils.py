@@ -372,27 +372,8 @@ def apply_filters(data: pd.DataFrame, filters: Dict) -> pd.DataFrame:
     """Applique les filtres aux données"""
     filtered_data = data.copy()
     
-    # Filtre par exercice
-    if filters.get('exercise'):
-        filtered_data = filtered_data[filtered_data['exercise'] == filters['exercise']]
-    
-    # Filtre par groupe musculaire
-    if filters.get('muscle_group'):
-        # Cette logique nécessiterait un mapping exercice -> muscle
-        pass
-    
-    # Filtre par type de série
-    if filters.get('set_types'):
-        filtered_data = filtered_data[filtered_data['set_type'].isin(filters['set_types'])]
-    
-    # Filtre par plage d'intensité
-    if filters.get('intensity_range'):
-        min_intensity, max_intensity = filters['intensity_range']
-        if 'intensity' in filtered_data.columns:
-            filtered_data = filtered_data[
-                (filtered_data['intensity'] >= min_intensity) &
-                (filtered_data['intensity'] <= max_intensity)
-            ]
+    # Note: Les filtres par exercice, muscle et intensité ont été supprimés
+    # de la sidebar. Cette fonction retourne maintenant toutes les données.
     
     return filtered_data
 

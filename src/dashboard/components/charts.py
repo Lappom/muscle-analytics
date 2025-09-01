@@ -73,7 +73,7 @@ def display_volume_charts(filters: Dict):
     
     api_client = get_api_client()
     volume_data = api_client.get_volume_analytics(
-        exercise=filters['exercise'],
+        exercise=None,  # Pas d'exercice spécifique - vue générale
         start_date=filters['start_date'],
         end_date=filters['end_date']
     )
@@ -85,25 +85,26 @@ def display_volume_charts(filters: Dict):
     # Conversion en DataFrame
     df_volume = pd.DataFrame(volume_data)
     
-    if filters['exercise']:
-        _display_exercise_volume_detail(df_volume, filters)
-    else:
-        _display_overall_volume_charts(df_volume, filters)
+    # Toujours afficher la vue générale maintenant
+    _display_overall_volume_charts(df_volume, filters)
 
 def _display_exercise_volume_detail(df_volume: pd.DataFrame, filters: Dict):
-    """Affiche les détails de volume pour un exercice spécifique"""
-    st.subheader(f"Volume pour {filters['exercise']}")
-    
-    # Métriques spécifiques à l'exercice
-    exercise_data = df_volume[df_volume['exercise'] == filters['exercise']].iloc[0]
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Volume total", format_weight(exercise_data['total_volume']))
-    with col2:
-        st.metric("Volume moyen/set", f"{exercise_data['avg_volume_per_set']:.1f} kg")
-    with col3:
-        st.metric("Volume moyen/session", f"{exercise_data['avg_volume_per_session']:.1f} kg")
+    """Affiche les détails de volume pour un exercice spécifique - FONCTION NON UTILISÉE"""
+    # NOTE: Cette fonction n'est plus utilisée depuis la suppression de la sélection d'exercice
+    # Elle reste pour référence mais ne sera pas appelée
+    pass
+    # st.subheader(f"Volume pour {filters['exercise']}")
+    # 
+    # # Métriques spécifiques à l'exercice
+    # exercise_data = df_volume[df_volume['exercise'] == filters['exercise']].iloc[0]
+    # 
+    # col1, col2, col3 = st.columns(3)
+    # with col1:
+    #     st.metric("Volume total", format_weight(exercise_data['total_volume']))
+    # with col2:
+    #     st.metric("Volume moyen/set", f"{exercise_data['avg_volume_per_set']:.1f} kg")
+    # with col3:
+    #     st.metric("Volume moyen/session", f"{exercise_data['avg_volume_per_session']:.1f} kg")
 
 def _display_overall_volume_charts(df_volume: pd.DataFrame, filters: Dict):
     """Affiche la vue d'ensemble des volumes"""
@@ -172,7 +173,7 @@ def display_progression_charts(filters: Dict):
     
     api_client = get_api_client()
     progression_data = api_client.get_progression_analytics(
-        exercise=filters['exercise'],
+        exercise=None,  # Pas d'exercice spécifique - vue générale
         start_date=filters['start_date'],
         end_date=filters['end_date']
     )
@@ -184,44 +185,45 @@ def display_progression_charts(filters: Dict):
     # Conversion en DataFrame
     df_progression = pd.DataFrame(progression_data)
     
-    if filters['exercise']:
-        _display_exercise_progression_detail(df_progression, filters)
-    else:
-        _display_overall_progression_charts(df_progression, filters)
+    # Toujours afficher la vue générale maintenant
+    _display_overall_progression_charts(df_progression, filters)
 
 def _display_exercise_progression_detail(df_progression: pd.DataFrame, filters: Dict):
-    """Affiche les détails de progression pour un exercice spécifique"""
-    st.subheader(f"Progression pour {filters['exercise']}")
-    
-    exercise_data = df_progression[df_progression['exercise'] == filters['exercise']].iloc[0]
-    
-    # Métriques de progression
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric("Sessions totales", exercise_data['total_sessions'])
-    
-    with col2:
-        trend = exercise_data.get('progression_trend', 'Inconnue')
-        trend_icons = {'positive': '📈', 'negative': '📉', 'stable': '➡️'}
-        trend_icon = trend_icons.get(trend.lower(), '❓')
-        st.metric("Tendance", f"{trend_icon} {trend.title()}")
-    
-    with col3:
-        plateau = exercise_data.get('plateau_detected', False)
-        plateau_status = "⚠️ Détecté" if plateau else "✅ Non détecté"
-        st.metric("Plateau", plateau_status)
-    
-    with col4:
-        days_since_pr = exercise_data.get('days_since_last_pr')
-        if days_since_pr is not None:
-            st.metric("Jours depuis dernier PR", f"{days_since_pr} jours")
-        else:
-            st.metric("Dernier PR", "Aucun")
-    
-    # Graphiques spécifiques à l'exercice
-    _display_exercise_trend_analysis(exercise_data, filters)
-    _display_exercise_volume_trends(exercise_data, filters)
+    """Affiche les détails de progression pour un exercice spécifique - FONCTION NON UTILISÉE"""
+    # NOTE: Cette fonction n'est plus utilisée depuis la suppression de la sélection d'exercice
+    # Elle reste pour référence mais ne sera pas appelée
+    pass
+    # st.subheader(f"Progression pour {filters['exercise']}")
+    # 
+    # exercise_data = df_progression[df_progression['exercise'] == filters['exercise']].iloc[0]
+    # 
+    # # Métriques de progression
+    # col1, col2, col3, col4 = st.columns(4)
+    # 
+    # with col1:
+    #     st.metric("Sessions totales", exercise_data['total_sessions'])
+    # 
+    # with col2:
+    #     trend = exercise_data.get('progression_trend', 'Inconnue')
+    #     trend_icons = {'positive': '📈', 'negative': '📉', 'stable': '➡️'}
+    #     trend_icon = trend_icons.get(trend.lower(), '❓')
+    #     st.metric("Tendance", f"{trend_icon} {trend.title()}")
+    # 
+    # with col3:
+    #     plateau = exercise_data.get('plateau_detected', False)
+    #     plateau_status = "⚠️ Détecté" if plateau else "✅ Non détecté"
+    #     st.metric("Plateau", plateau_status)
+    # 
+    # with col4:
+    #     days_since_pr = exercise_data.get('days_since_last_pr')
+    #     if days_since_pr is not None:
+    #         st.metric("Jours depuis dernier PR", f"{days_since_pr} jours")
+    #     else:
+    #         st.metric("Dernier PR", "Aucun")
+    # 
+    # # Graphiques spécifiques à l'exercice
+    # _display_exercise_trend_analysis(exercise_data, filters)
+    # _display_exercise_volume_trends(exercise_data, filters)
 
 def _display_overall_progression_charts(df_progression: pd.DataFrame, filters: Dict):
     """Affiche la vue d'ensemble des progressions"""

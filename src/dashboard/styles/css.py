@@ -447,6 +447,7 @@ def get_main_css() -> str:
             margin: 1rem 0;
             box-shadow: var(--shadow);
             transition: var(--transition);
+            overflow: hidden;
         }
         
         .stSidebar .stExpander:hover {
@@ -455,7 +456,21 @@ def get_main_css() -> str:
             transform: translateY(-2px);
         }
         
+        /* Header des expandeurs (fermés) */
         .stSidebar .stExpander summary {
+            background: #f8f9fa;
+            color: var(--text-dark);
+            border-radius: 14px;
+            padding: 1rem 1.25rem;
+            font-weight: 700;
+            font-size: 1rem;
+            border-bottom: none;
+            transition: var(--transition);
+            margin: 0;
+        }
+        
+        /* Header des expandeurs (ouverts) */
+        .stSidebar .stExpander[open] summary {
             background: #f8f9fa;
             color: var(--text-dark);
             border-radius: 14px 14px 0 0;
@@ -468,6 +483,53 @@ def get_main_css() -> str:
         
         .stSidebar .stExpander summary:hover {
             background: #e9f4ff;
+            color: var(--primary-color);
+        }
+        
+        /* Styles supplémentaires pour les expandeurs Streamlit */
+        .stSidebar .streamlit-expanderHeader {
+            background: #f8f9fa !important;
+            border-radius: 14px !important;
+            border-bottom: none !important;
+            transition: var(--transition) !important;
+        }
+        
+        .stSidebar .streamlit-expanderHeader:hover {
+            background: #e9f4ff !important;
+            color: var(--primary-color) !important;
+        }
+        
+        /* Expandeur ouvert */
+        .stSidebar [data-testid="stExpander"][aria-expanded="true"] .streamlit-expanderHeader,
+        .stSidebar .stExpander[data-testid="stExpander"][aria-expanded="true"] summary {
+            border-radius: 14px 14px 0 0 !important;
+            border-bottom: 1px solid #e9ecef !important;
+        }
+        
+        /* Expandeur fermé */
+        .stSidebar [data-testid="stExpander"][aria-expanded="false"] .streamlit-expanderHeader,
+        .stSidebar .stExpander[data-testid="stExpander"][aria-expanded="false"] summary {
+            border-radius: 14px !important;
+            border-bottom: none !important;
+        }
+        
+        /* Classes emotion-cache pour les expandeurs */
+        .stSidebar [class*="st-emotion-cache"] details summary {
+            background: #f8f9fa !important;
+            border-radius: 14px !important;
+            border-bottom: none !important;
+            transition: var(--transition) !important;
+        }
+        
+        .stSidebar [class*="st-emotion-cache"] details[open] summary {
+            border-radius: 14px 14px 0 0 !important;
+            border-bottom: 1px solid #e9ecef !important;
+        }
+        
+        .stSidebar [class*="st-emotion-cache"] details summary:hover {
+            background: #e9f4ff !important;
+            color: var(--primary-color) !important;
+        }
             color: var(--primary-color);
         }
         

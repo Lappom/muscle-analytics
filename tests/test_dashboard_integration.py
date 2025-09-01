@@ -154,10 +154,14 @@ class TestPlateauAlerts:
         # Appeler la fonction
         _display_alerts_and_recommendations(dashboard_data)
         
-        # Vérifier que le message de succès est affiché
-        mock_success.assert_called()
+        # Vérifier qu'aucun message de succès n'est affiché (pas de plateau = pas d'affichage)
+        mock_success.assert_not_called()
         # Vérifier qu'aucune alerte d'erreur n'est affichée
         mock_error.assert_not_called()
+        # Vérifier qu'aucun warning n'est affiché (fréquence et consistency OK)
+        mock_warning.assert_not_called()
+        # Vérifier qu'aucune info n'est affichée
+        mock_info.assert_not_called()
     
     @patch('streamlit.warning')
     def test_display_alerts_low_frequency(self, mock_warning):

@@ -17,7 +17,6 @@ from src.dashboard.components.charts import (
     display_heatmap_calendar
 )
 from src.dashboard.components.muscle_analysis import display_muscle_analysis
-from src.dashboard.components.exercise_detail import display_exercise_detail
 from src.dashboard.services.api_client import get_api_client
 
 # Configuration des logs
@@ -78,10 +77,7 @@ def display_tabs(filters: Dict):
             display_progression_charts(filters)
     
     with tab3:
-        if filters['exercise']:
-            display_exercise_detail(filters['exercise'], filters)
-        else:
-            st.info("👈 Sélectionnez un exercice spécifique dans la barre latérale pour voir l'analyse détaillée")
+        st.info("� Analyse d'exercice détaillée temporairement désactivée")
     
     with tab4:
         with st.spinner("💪 Chargement de l'analyse musculaire..."):
